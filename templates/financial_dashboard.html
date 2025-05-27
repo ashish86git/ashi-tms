@@ -1,0 +1,296 @@
+<!-- financial_report.html -->
+{% extends "layout.html" %}
+{% block content %}
+<div class="container py-4">
+  <h2 class="mb-4 fw-bold text-dark">
+    <i class="bi bi-bar-chart-line text-primary me-2"></i>Transport Financial Dashboard
+  </h2>
+
+  <!-- Filters -->
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <label class="form-label">Date:</label>
+      <select id="filterDate" class="form-select">
+        <option value="All">All</option>
+        {% for d in summary.unique_dates %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Driver:</label>
+      <select id="filterDriver" class="form-select">
+        <option value="All">All</option>
+        {% for d in summary.unique_drivers %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Vehicle:</label>
+      <select id="filterVehicle" class="form-select">
+        <option value="All">All</option>
+        {% for v in summary.unique_vehicles %}<option value="{{ v }}">{{ v }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Chart Type:</label>
+      <select id="chartType" class="form-select">
+        <option value="pie">Pie</option>
+        <option value="bar">Bar</option>
+        <option value="line">Line</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="row g-4">
+    <div class="col-md-6">
+      <canvas id="fuelCostChart"></canvas>
+    </div>
+    <div class="col-md-6">
+      <canvas id="profitChart"></canvas>
+    </div>
+    <div class="col-md-6 mt-4">
+      <canvas id="serviceCountChart"></canvas>
+    </div>
+    <div class="col-md-6 mt-4">
+      <canvas id="avgChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Map View -->
+  <div class="mt-5">
+    <h4 class="fw-semibold">Map View of Routes</h4>
+    <div id="map" style="height: 400px; width: 100%;" class="rounded shadow border"></div>
+  </div>
+
+  <!-- Data Table -->
+  <div class="table-responsive mt-5">
+    <table id="tripTable" class="table table-hover">
+      <thead class="table-dark">
+        <tr>
+          <th>Vehicle</th><th>Driver</th><th>Date</th><th>Pickup</th><th>Drop</th>
+          <th>Distance (km)</th><th>Fuel Used (L)</th><th>Fuel Cost (₹)</th><th>Amount (₹)</th>
+          <th>Profit (₹)</th><th>Service</th><th>Expected Avg</th><th>Actual Avg</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in routes %}
+          <tr data-pickup-lat="{{ t.pickup_coords[0] if t.pickup_coords else '' }}" data-pickup-lon="{{ t.pickup_coords[1] if t.pickup_coords else '' }}"
+              data-drop-lat="{{ t.drop_coords[0] if t.drop_coords else '' }}" data-drop-lon="{{ t.drop_coords[1] if t.drop_coords else '' }}">
+            <td>{{ t.vehicle_id }}</td>
+            <td>{{ t.driver_name }}</td>
+            <td>{{ t.date }}</td>
+            <td>{{ t.pickup }}</td>
+            <td>{{ t.drop }}</td>
+            <td>{{ t.distance_km }}</td>
+            <td>{{ t.fuel_used_l }}</td>
+            <td>{{ t.fuel_cost }}</td>
+            <td>{{ t.amount }}</td>
+            <td>{{ t.profit }}</td>
+            <td>{{ t.service_suggestion }}</td>
+            <td>{{ t.avg_expected }}</td>
+            <td>{{ t.avg_actual }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+
+<script>
+  let charts = {};
+
+  // Utility to aggregate data for charts from filtered rows
+  function aggregateData(rows) {
+    const data = {
+      fuelCostByVehicle: {},
+      profitByVehicle: {},
+      serviceCountByVehicle: {},
+      avgExpectedByVehicle: {},
+      avgActualByVehicle: {}
+    };
+
+    for (const row of rows) {
+      const vehicle = row.cells[0].innerText;
+      const fuelCost = parseFloat(row.cells[7].innerText) || 0;
+      const profit = parseFloat(row.cells[9].innerText) || 0;
+      const service = row.cells[10].innerText;
+      const expectedAvg = parseFloat(row.cells[11].innerText) || 0;
+      const actualAvg = parseFloat(row.cells[12].innerText) || 0;
+
+      data.fuelCostByVehicle[vehicle] = (data.fuelCostByVehicle[vehicle] || 0) + fuelCost;
+      data.profitByVehicle[vehicle] = (data.profitByVehicle[vehicle] || 0) + profit;
+      data.serviceCountByVehicle[vehicle] = (data.serviceCountByVehicle[vehicle] || 0) + (service.toLowerCase() === 'yes' ? 1 : 0);
+      data.avgExpectedByVehicle[vehicle] = expectedAvg;  // Just take last seen (can average if needed)
+      data.avgActualByVehicle[vehicle] = actualAvg;
+    }
+    return data;
+  }
+
+  // Render charts of given type
+  function renderCharts(type = 'pie') {
+    const visibleRows = Array.from(document.querySelectorAll('#tripTable tbody tr')).filter(r => r.style.display !== 'none');
+    const data = aggregateData(visibleRows);
+
+    // Destroy old charts if exist
+    Object.values(charts).forEach(c => c.destroy());
+    charts = {};
+
+    // Fuel Cost Chart
+    charts.fuelCostChart = new Chart(document.getElementById('fuelCostChart'), {
+      type,
+      data: {
+        labels: Object.keys(data.fuelCostByVehicle),
+        datasets: [{
+          label: 'Fuel Cost (₹)',
+          data: Object.values(data.fuelCostByVehicle),
+          backgroundColor: generateColors(Object.keys(data.fuelCostByVehicle).length)
+        }],
+      },
+      options: { responsive: true }
+    });
+
+    // Profit Chart
+    charts.profitChart = new Chart(document.getElementById('profitChart'), {
+      type,
+      data: {
+        labels: Object.keys(data.profitByVehicle),
+        datasets: [{
+          label: 'Profit (₹)',
+          data: Object.values(data.profitByVehicle),
+          backgroundColor: generateColors(Object.keys(data.profitByVehicle).length)
+        }],
+      },
+      options: { responsive: true }
+    });
+
+    // Service Count Chart
+    charts.serviceCountChart = new Chart(document.getElementById('serviceCountChart'), {
+      type,
+      data: {
+        labels: Object.keys(data.serviceCountByVehicle),
+        datasets: [{
+          label: 'Service Count',
+          data: Object.values(data.serviceCountByVehicle),
+          backgroundColor: generateColors(Object.keys(data.serviceCountByVehicle).length)
+        }],
+      },
+      options: { responsive: true }
+    });
+
+    // Expected vs Actual Avg Line Chart
+    charts.avgChart = new Chart(document.getElementById('avgChart'), {
+      type: 'line',
+      data: {
+        labels: Object.keys(data.avgExpectedByVehicle),
+        datasets: [
+          {
+            label: 'Expected Avg',
+            data: Object.values(data.avgExpectedByVehicle),
+            borderColor: '#36A2EB',
+            fill: false,
+            tension: 0.1
+          },
+          {
+            label: 'Actual Avg',
+            data: Object.values(data.avgActualByVehicle),
+            borderColor: '#FF6384',
+            fill: false,
+            tension: 0.1
+          }
+        ],
+      },
+      options: { responsive: true }
+    });
+  }
+
+  // Generate array of colors for charts
+  function generateColors(num) {
+    const baseColors = ['#FF6384','#36A2EB','#FFCE56','#4BC0C0','#9966FF','#FF9F40'];
+    const colors = [];
+    for(let i=0; i<num; i++) {
+      colors.push(baseColors[i % baseColors.length]);
+    }
+    return colors;
+  }
+
+  // Filter table rows based on selected filters and update charts & map
+  function applyFilters() {
+    const dateVal = document.getElementById('filterDate').value;
+    const driverVal = document.getElementById('filterDriver').value;
+    const vehicleVal = document.getElementById('filterVehicle').value;
+
+    const rows = document.querySelectorAll('#tripTable tbody tr');
+    rows.forEach(row => {
+      const show = (dateVal === 'All' || row.cells[2].innerText === dateVal) &&
+                   (driverVal === 'All' || row.cells[1].innerText === driverVal) &&
+                   (vehicleVal === 'All' || row.cells[0].innerText === vehicleVal);
+      row.style.display = show ? '' : 'none';
+    });
+
+    // Update charts & map
+    renderCharts(document.getElementById('chartType').value);
+    updateMap();
+  }
+
+  // Event listeners for filters & chart type change
+  ['filterDate','filterDriver','filterVehicle'].forEach(id => {
+    document.getElementById(id).addEventListener('change', applyFilters);
+  });
+  document.getElementById('chartType').addEventListener('change', e => {
+    renderCharts(e.target.value);
+  });
+
+  // Initialize charts and filters on page load
+  applyFilters();
+
+  // Leaflet Map Setup
+  const map = L.map('map').setView([23.2599, 77.4126], 5);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18
+  }).addTo(map);
+
+  let mapMarkers = [];
+  let mapLines = [];
+
+  function clearMap() {
+    mapMarkers.forEach(m => map.removeLayer(m));
+    mapMarkers = [];
+    mapLines.forEach(l => map.removeLayer(l));
+    mapLines = [];
+  }
+
+  // Update map routes based on visible rows
+  function updateMap() {
+    clearMap();
+    const visibleRows = Array.from(document.querySelectorAll('#tripTable tbody tr')).filter(r => r.style.display !== 'none');
+    visibleRows.forEach(row => {
+      const pickupLat = parseFloat(row.dataset.pickupLat);
+      const pickupLon = parseFloat(row.dataset.pickupLon);
+      const dropLat = parseFloat(row.dataset.dropLat);
+      const dropLon = parseFloat(row.dataset.dropLon);
+
+      if (!isNaN(pickupLat) && !isNaN(pickupLon)) {
+        const m1 = L.marker([pickupLat, pickupLon]).addTo(map)
+          .bindPopup(`Pickup: ${row.cells[3].innerText}`);
+        mapMarkers.push(m1);
+      }
+      if (!isNaN(dropLat) && !isNaN(dropLon)) {
+        const m2 = L.marker([dropLat, dropLon]).addTo(map)
+          .bindPopup(`Drop: ${row.cells[4].innerText}`);
+        mapMarkers.push(m2);
+      }
+      if (!isNaN(pickupLat) && !isNaN(pickupLon) && !isNaN(dropLat) && !isNaN(dropLon)) {
+        const line = L.polyline([[pickupLat, pickupLon], [dropLat, dropLon]], {color: 'blue'}).addTo(map);
+        mapLines.push(line);
+      }
+    });
+    if (mapMarkers.length > 0) {
+      const group = new L.featureGroup(mapMarkers.concat(mapLines));
+      map.fitBounds(group.getBounds().pad(0.5));
+    }
+  }
+</script>
+{% endblock %}

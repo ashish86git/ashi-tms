@@ -1,0 +1,225 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="container py-4">
+  <h3 class="mb-3"><i class="bi bi-truck me-2"></i>Fleet Master</h3>
+
+  <!-- Filter Bar: only for selected fields -->
+  <form id="filterForm" class="row g-2 mb-4">
+    <div class="col-sm-4">
+      <input type="text" class="form-control" id="filter_vehicle_id" placeholder="Search Vehicle ID">
+    </div>
+    <div class="col-sm-4">
+      <input type="text" class="form-control" id="filter_driver" placeholder="Search Driver Name">
+    </div>
+    <div class="col-sm-4">
+      <input type="date" class="form-control" id="filter_docs_expiry" placeholder="Search Docs Expiry">
+    </div>
+  </form>
+
+  <!-- Fleet Table -->
+  <div class="table-responsive">
+    <table class="table table-hover align-middle" id="fleetTable">
+      <thead class="table-primary">
+        <tr>
+          {% set cols = [
+            'Vehicle ID', 'Vehicle Name', 'Driver id', 'Date of Join', 'Make',
+            'Model', 'VIN', 'Status', 'Type', 'Group', 'Current Meter',
+            'License Plate', 'Capacity Weight', 'Capacity Volume', 'Documents Expiry'
+          ] %}
+          {% for col in cols %}
+          <th class="sortable" data-key="{{ col | lower | replace(' ', '_') }}" style="cursor: pointer;">
+            {{ col }}
+            {% if col in ['Vehicle ID', 'Assigned Driver', 'Documents Expiry'] %}
+              <i class="bi bi-arrow-down-up ms-1"></i>
+            {% endif %}
+          </th>
+          {% endfor %}
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in data %}
+        <tr>
+          <td>{{ row.vehicle_id }}</td>
+          <td>{{ row.vehicle_name }}</td>
+          <td>{{ row.driver_id }}</td>
+          <td>{{ row.date_of_join }}</td>
+          <td>{{ row.make }}</td>
+          <td>{{ row.model }}</td>
+          <td>{{ row.vin }}</td>
+          <td>{{ row.status }}</td>
+          <td>{{ row.type }}</td>
+          <td>{{ row.group }}</td>
+          <td>{{ row.current_meter }}</td>
+          <td>{{ row.license_plate }}</td>
+          <td>{{ row.capacity_wei }}</td>
+          <td>{{ row.capacity_vol }}</td>
+          <td>{{ row.documents_expiry }}</td>
+          <td>
+            <a href="/fleet_master/edit/{{ row.vehicle_id }}" class="btn btn-sm btn-outline-primary me-1">
+              <i class="bi bi-pencil-square"></i>
+            </a>
+            <form method="POST" action="/fleet_master/delete/{{ row.vehicle_id }}" class="d-inline" onsubmit="return confirm('Delete this vehicle?');">
+              <button type="submit" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Add Fleet Form -->
+  <div class="card mt-5">
+    <div class="card-header">Add New Vehicle</div>
+    <div class="card-body">
+      <form method="POST" action="/fleet_master/add">
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label">Vehicle ID</label>
+            <input type="text" name="vehicle_id" class="form-control" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Vehicle Name</label>
+            <input type="text" name="vehicle_name" class="form-control" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Driver id</label>
+            <input type="text" name="driver_id" class="form-control" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Date of Join</label>
+            <input type="date" name="date_of_join" class="form-control">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Make</label>
+            <input type="text" name="make" class="form-control">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Model</label>
+            <input type="text" name="model" class="form-control">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">VIN</label>
+            <input type="text" name="vin" class="form-control">
+          </div>
+          <div class="col-md-4">
+              <label for="status" class="form-label">Status</label>
+              <select name="status" class="form-select" required>
+                <option value="">Select Status</option>
+                <option value="Active">Active</option>
+                <option value="Under Service">Under Service</option>
+                <option value="Out of Service">Out of Service</option>
+              </select>
+            </div>
+
+            <div class="col-md-4">
+              <label for="type" class="form-label">Type</label>
+              <select name="type" class="form-select" required>
+                <option value="">Select Vehicle Type</option>
+                <option value="Truck">Truck</option>
+                <option value="Van">Van</option>
+                <option value="Pickup">Pickup</option>
+                <option value="Trailer">Trailer</option>
+                <option value="Mini Truck">Mini Truck</option>
+                <option value="Container">Container</option>
+                <option value="Tanker">Tanker</option>
+              </select>
+            </div>
+
+          <div class="col-md-4">
+            <label class="form-label">Group</label>
+            <input type="text" name="group" class="form-control">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Current Meter</label>
+            <input type="number" name="current_meter" class="form-control">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">License Plate</label>
+            <input type="text" name="license_plate" class="form-control">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Capacity Weight (kg)</label>
+            <input type="number" name="capacity_wei" class="form-control">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Capacity Volume (cbm)</label>
+            <input type="number" name="capacity_vol" class="form-control">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Documents Expiry</label>
+            <input type="date" name="documents_expiry" class="form-control">
+          </div>
+        </div>
+        <div class="text-end mt-4">
+          <button type="submit" class="btn btn-success">
+            <i class="bi bi-plus-circle me-1"></i> Add Vehicle
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const table = document.getElementById('fleetTable');
+    const tbody = table.querySelector('tbody');
+    const headers = document.querySelectorAll('th.sortable');
+    let sortState = {};
+
+    headers.forEach(th => {
+      th.addEventListener('click', () => {
+        const key = th.getAttribute('data-key');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        const isAsc = sortState[key] === 'asc';
+
+        rows.sort((a, b) => {
+          const valA = a.children[th.cellIndex].innerText.trim().toLowerCase();
+          const valB = b.children[th.cellIndex].innerText.trim().toLowerCase();
+
+          if (!isNaN(Date.parse(valA)) && !isNaN(Date.parse(valB))) {
+            return isAsc ? new Date(valA) - new Date(valB) : new Date(valB) - new Date(valA);
+          }
+
+          if (!isNaN(valA) && !isNaN(valB)) {
+            return isAsc ? valA - valB : valB - valA;
+          }
+
+          return isAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        });
+
+        rows.forEach(row => tbody.appendChild(row));
+        sortState = {}; sortState[key] = isAsc ? 'desc' : 'asc';
+      });
+    });
+
+    const filters = {
+      vehicle_id: document.getElementById('filter_vehicle_id'),
+      assigned_driver: document.getElementById('filter_driver'),
+      documents_expiry: document.getElementById('filter_docs_expiry')
+    };
+
+    Object.values(filters).forEach(input => {
+      input.addEventListener('input', () => {
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        rows.forEach(row => {
+          const idVal = row.cells[0].innerText.toLowerCase();
+          const driverVal = row.cells[2].innerText.toLowerCase();
+          const expiryVal = row.cells[14].innerText;
+
+          const show = (!filters.vehicle_id.value || idVal.includes(filters.vehicle_id.value.toLowerCase())) &&
+                       (!filters.assigned_driver.value || driverVal.includes(filters.assigned_driver.value.toLowerCase())) &&
+                       (!filters.documents_expiry.value || new Date(expiryVal) >= new Date(filters.documents_expiry.value));
+
+          row.style.display = show ? '' : 'none';
+        });
+      });
+    });
+  });
+</script>
+{% endblock %}

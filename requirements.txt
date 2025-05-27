@@ -1,0 +1,8 @@
+Flask==3.1.1
+flask_sqlalchemy==3.1.1
+folium==0.19.5
+geopy==2.4.1
+ortools==9.12.4544
+pandas==1.5.3
+psycopg2==2.9.10
+Werkzeug==3.1.3
