@@ -13,7 +13,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
 import folium
-from geopy.geocoders import Nominatim
+
 from geopy.geocoders import Nominatim
 from geopy.distance import geodesic
 
