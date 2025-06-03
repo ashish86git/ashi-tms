@@ -559,48 +559,6 @@ def issue_management():
     return render_template('issue_management.html', issues=issues)
 
 
-# @app.route('/assign_vehicle', methods=['POST'])
-# def assign_vehicle():
-#     vehicle_id = request.form['vehicle_id']
-#     order_id = request.form['order_id']
-#
-#     conn = get_connection()
-#     cur = conn.cursor()
-#
-#     # Update vehicle status
-#     cur.execute("""
-#         UPDATE vehicles
-#         SET status='assigned', order_id=%s, assigned_time=%s
-#         WHERE vehicle_id=%s
-#     """, (order_id, datetime.now(), vehicle_id))
-#
-#     # Update order assignment
-#     cur.execute("""
-#         UPDATE orders
-#         SET assigned_vehicle=%s
-#         WHERE order_id=%s
-#     """, (vehicle_id, order_id))
-#
-#     conn.commit()
-#     conn.close()
-#     return redirect(url_for('vehicle'))
-#
-# # @app.route('/add_vehicle', methods=['POST'])
-# # def add_vehicle():
-# #     vehicle_id = request.form['vehicle_id']
-# #     location = request.form['location']
-# #     capacity = int(request.form['capacity'])
-# #
-# #     conn = get_connection()
-# #     cur = conn.cursor()
-# #
-# #     cur.execute("INSERT INTO vehicles (vehicle_id, location, status) VALUES (%s, %s, 'available')", (vehicle_id, location))
-# #     cur.execute("INSERT INTO fleet_master (vehicle_id, capacity_kg) VALUES (%s, %s)", (vehicle_id, capacity))
-# #
-# #     conn.commit()
-# #     conn.close()
-# #
-# #     return redirect(url_for('vehicle'))
 
 # --------- ORDER MANAGEMENT -----------
 @app.route('/orders', methods=['GET', 'POST'])
@@ -761,6 +719,7 @@ def edit_order(order_id):
     return render_template('orders.html', data=orders_data, edit_order=order)
 
 
+# Static city coordinates
 city_coords = {
     "Delhi": (28.6139, 77.2090),
     "Noida": (28.5355, 77.3910),
@@ -772,10 +731,10 @@ city_coords = {
     "Gurgaon": (28.4595, 77.0266)
 }
 
+def geocode_address(addr):
+    return city_coords.get(str(addr).strip().title(), (0.0, 0.0))
 
-# --------- ROUTE OPTIMIZATION (OR-Tools) -----------
-
-
+# ------------- ROUTE OPTIMIZATION -------------
 @app.route('/optimize', methods=['GET'])
 def optimize():
     if 'user' not in session:
@@ -788,26 +747,10 @@ def optimize():
     driver_df = pd.read_sql('SELECT * FROM driver_master', conn)
     conn.close()
 
-    # City Coordinates (example)
-    city_coords = {
-        "Delhi": (28.6139, 77.2090),
-        "Noida": (28.5355, 77.3910),
-        "Pune": (18.5204, 73.8567),
-        "Mumbai": (19.0760, 72.8777),
-        "Gujarat": (22.2587, 71.1924),
-        "Lucknow": (26.8467, 80.9462),
-        "Varanasi": (25.3176, 82.9739),
-        "Gurgaon": (28.4595, 77.0266)
-    }
-
-    def geocode_address(addr):
-        return city_coords.get(str(addr).strip().title(), (0.0, 0.0))
-
-    # Add latlon to orders
+    # Enrich data with lat/lon
     order_df['pickup_latlon'] = order_df['pickup_location_latlon'].apply(geocode_address)
     order_df['drop_latlon'] = order_df['drop_location_latlon'].apply(geocode_address)
 
-    # Add latlon to fleet (driver's current location)
     fleet_df['Current_Location_LatLon'] = fleet_df['driver_id'].map(
         lambda did: geocode_address(driver_df[driver_df['driver_id'] == did]['address'].values[0])
         if did in driver_df['driver_id'].values else (0.0, 0.0)
@@ -815,12 +758,10 @@ def optimize():
     fleet_df['Current_Lat'] = fleet_df['Current_Location_LatLon'].apply(lambda x: x[0])
     fleet_df['Current_Lon'] = fleet_df['Current_Location_LatLon'].apply(lambda x: x[1])
 
-    # Prepare locations for routing
     fleet_locations = list(zip(fleet_df['Current_Lat'], fleet_df['Current_Lon']))
     drop_locations = list(order_df['drop_latlon'])
     locations = fleet_locations + drop_locations
 
-    # Compute distance matrix (meters)
     def compute_distance_matrix(locations):
         distances = {}
         for i, from_loc in enumerate(locations):
@@ -869,48 +810,28 @@ def optimize():
     solution = routing.SolveWithParameters(search_parameters)
     routes_info = []
 
-    # --- AI-inspired helper functions ---
-
+    # --- Helper Functions ---
     def estimate_travel_time_km(distance_km):
-        """
-        Estimate travel time in hours with traffic and vehicle factors
-        """
-        base_speed_kmh = 40  # base average speed
-        traffic_factor = 1.2  # 20% more time due to traffic
-        vehicle_factor = 1.1  # 10% extra for vehicle condition/load
-
-        travel_time = distance_km / base_speed_kmh  # base hours
-        adjusted_time = travel_time * traffic_factor * vehicle_factor
-        return adjusted_time
+        base_speed_kmh = 40
+        traffic_factor = 1.2
+        vehicle_factor = 1.1
+        return (distance_km / base_speed_kmh) * traffic_factor * vehicle_factor
 
     def calculate_rest_time(distance_km):
-        """
-        For every 100 km, assume 15 min rest time
-        """
-        rest_periods = distance_km // 100
-        rest_minutes = rest_periods * 15
-        return rest_minutes / 60  # convert to hours
+        return (distance_km // 100) * 15 / 60
 
-    def estimate_fuel_consumption(distance_km, vehicle_fuel_efficiency_l_per_km=0.2):
-        """
-        Estimate fuel consumption in liters, default 0.2 L/km (5 km per liter)
-        """
-        return distance_km * vehicle_fuel_efficiency_l_per_km
+    def estimate_fuel_consumption(distance_km, efficiency=0.2):
+        return distance_km * efficiency
 
     def calculate_delivery_window(distance_km):
-        """
-        Calculate suggested delivery window based on now + estimated time + rest
-        """
         now = datetime.now()
         travel_hours = estimate_travel_time_km(distance_km)
         rest_hours = calculate_rest_time(distance_km)
         total_hours = travel_hours + rest_hours
-
-        start_time = now
         end_time = now + timedelta(hours=total_hours)
+        return now.strftime('%I:%M %p'), end_time.strftime('%I:%M %p'), total_hours
 
-        return start_time.strftime('%I:%M %p'), end_time.strftime('%I:%M %p'), total_hours
-
+    # --- Process Solution ---
     if solution:
         for vehicle_id in range(num_vehicles):
             index = routing.Start(vehicle_id)
@@ -941,47 +862,40 @@ def optimize():
                 for i in range(len(route_locations) - 1)
             )
 
-            # AI-logic: delivery window & fuel consumption
             window_start, window_end, total_time_hrs = calculate_delivery_window(total_distance)
-            fuel_consumed = estimate_fuel_consumption(total_distance,
-                                                      fleet_df.iloc[vehicle_id]['fuel_efficiency_l_per_km']
-                                                      if 'fuel_efficiency_l_per_km' in fleet_df.columns else 0.2)
+            fuel_eff = fleet_df.iloc[vehicle_id].get('fuel_efficiency_l_per_km', 0.2)
+            fuel_used = estimate_fuel_consumption(total_distance, fuel_eff)
 
-            vehicle_id_str = fleet_df.iloc[vehicle_id]['vehicle_id']
-            driver_name = "N/A"
             driver_row = driver_df[driver_df['driver_id'] == fleet_df.iloc[vehicle_id]['driver_id']]
-            if not driver_row.empty:
-                driver_name = driver_row.iloc[0]['driver_name']
+            driver_name = driver_row.iloc[0]['driver_name'] if not driver_row.empty else "N/A"
 
             route_id = uuid.uuid4().hex[:8]
             map_path = f"static/maps/{route_id}.html"
             m.save(map_path)
 
             routes_info.append({
-                'vehicle': vehicle_id_str,
+                'vehicle': fleet_df.iloc[vehicle_id]['vehicle_id'],
                 'driver': driver_name,
                 'orders': assigned_orders,
                 'distance_km': round(total_distance, 2),
                 'map_url': map_path,
                 'suggested_delivery_window': f"{window_start} – {window_end}",
                 'estimated_travel_time_hrs': round(total_time_hrs, 2),
-                'estimated_fuel_liters': round(fuel_consumed, 2),
+                'estimated_fuel_liters': round(fuel_used, 2),
             })
     else:
         return "⚠️ No optimized route found. Please check locations, capacities, and demands."
 
     return render_template('route_optimize.html', routes=routes_info)
 
-
+# ------------- SAVE MANUAL ROUTE -------------
 @app.route('/save_manual_route', methods=['POST'])
 def save_manual_route():
     data = request.get_json()
-
     vehicle = data.get('vehicle')
     driver = data.get('driver')
     orders = data.get('orders')
 
-    # Optional: Check if a route already exists for this driver or vehicle
     existing = Route.query.filter_by(vehicle=vehicle, driver=driver).first()
     if existing:
         existing.orders = orders
@@ -990,7 +904,6 @@ def save_manual_route():
         db.session.add(new_route)
 
     db.session.commit()
-
     return jsonify({"status": "success", "message": "Route saved"})
 
 
@@ -1375,6 +1288,6 @@ def download_report():
 
 
 if __name__ == '__main__':
-    os.makedirs(DATA_PATH, exist_ok=True)
-    os.makedirs('static/maps', exist_ok=True)
+    # os.makedirs(DATA_PATH, exist_ok=True)
+    # os.makedirs('static/maps', exist_ok=True)
     app.run(debug=True)
