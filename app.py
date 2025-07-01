@@ -143,6 +143,7 @@ def logout():
 
 # --------- FLEET MASTER -----------
 # ---------- Fleet Master View ----------
+# fleet_master route
 @app.route('/fleet_master', methods=['GET'])
 def fleet_master():
     if 'user' not in session:
@@ -169,7 +170,8 @@ def fleet_master():
         'capacity_vol': row[11],
         'documents_expiry': row[12].strftime('%Y-%m-%d') if row[12] else '',
         'driver_id': row[13],
-        'date_of_join': row[14].strftime('%Y-%m-%d') if row[14] else ''
+        'date_of_join': row[14].strftime('%Y-%m-%d') if row[14] else '',
+        'avg': row[15] if row[15] is not None else 0
     } for row in rows]
 
     cursor.close()
@@ -177,7 +179,8 @@ def fleet_master():
 
     return render_template('fleet_master.html', data=fleet_data, user=session['user'])
 
-# ---------- Add Vehicle ----------
+
+# Add Vehicle
 @app.route('/fleet_master/add', methods=['POST'])
 def add_vehicle():
     form = request.form
@@ -190,8 +193,8 @@ def add_vehicle():
             INSERT INTO fleet (
                 vehicle_id, vehicle_name, make, model, vin, type, "group", status,
                 license_plate, current_meter, capacity_weight_kg, capacity_vol_cbm,
-                documents_expiry, driver_id, date_of_join
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                documents_expiry, driver_id, date_of_join, avg
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             form['vehicle_id'],
             form['vehicle_name'],
@@ -207,7 +210,8 @@ def add_vehicle():
             float(form['capacity_vol']),
             datetime.strptime(form['documents_expiry'], '%Y-%m-%d'),
             form['driver_id'],
-            datetime.strptime(form['date_of_join'], '%Y-%m-%d')
+            datetime.strptime(form['date_of_join'], '%Y-%m-%d'),
+            float(form.get('avg') or 0)
         ))
 
         conn.commit()
@@ -225,28 +229,8 @@ def add_vehicle():
 
     return redirect('/fleet_master')
 
-# ---------- Delete Vehicle ----------
-@app.route('/fleet_master/delete/<vehicle_id>', methods=['POST'])
-def delete_vehicle(vehicle_id):
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
 
-        cursor.execute("DELETE FROM fleet WHERE vehicle_id = %s", (vehicle_id,))
-        conn.commit()
-
-        flash('Vehicle deleted successfully!', 'success')
-
-    except Exception as e:
-        conn.rollback()
-        flash(f'Error deleting vehicle: {str(e)}', 'danger')
-    finally:
-        cursor.close()
-        conn.close()
-
-    return redirect('/fleet_master')
-
-# ---------- Edit Vehicle ----------
+# Edit Vehicle
 @app.route('/fleet_master/edit/<vehicle_id>', methods=['GET', 'POST'])
 def edit_vehicle(vehicle_id):
     conn = get_db_connection()
@@ -255,7 +239,6 @@ def edit_vehicle(vehicle_id):
     if request.method == 'POST':
         form = request.form
         try:
-            # Convert date fields if not empty, else None
             documents_expiry = form.get('documents_expiry')
             if documents_expiry:
                 documents_expiry = datetime.strptime(documents_expiry, '%Y-%m-%d').date()
@@ -283,7 +266,8 @@ def edit_vehicle(vehicle_id):
                     capacity_weight_kg = %s,
                     capacity_vol_cbm = %s,
                     documents_expiry = %s,
-                    date_of_join = %s
+                    date_of_join = %s,
+                    avg = %s
                 WHERE vehicle_id = %s
             """, (
                 form.get('vehicle_name'),
@@ -300,6 +284,7 @@ def edit_vehicle(vehicle_id):
                 float(form.get('capacity_vol_cbm') or 0),
                 documents_expiry,
                 date_of_join,
+                float(form.get('avg') or 0),
                 vehicle_id
             ))
 
@@ -312,7 +297,7 @@ def edit_vehicle(vehicle_id):
             flash(f'Error updating vehicle: {str(e)}', 'danger')
             return redirect('/fleet_master')
 
-    # GET method - show current data
+    # GET method
     cursor.execute("SELECT * FROM fleet WHERE vehicle_id = %s", (vehicle_id,))
     row = cursor.fetchone()
     cursor.close()
@@ -322,7 +307,6 @@ def edit_vehicle(vehicle_id):
         flash('Vehicle not found.', 'warning')
         return redirect('/fleet_master')
 
-    # Map row to dict with proper keys (adjust indices based on your table structure)
     vehicle_data = {
         'vehicle_id': row[0],
         'vehicle_name': row[1],
@@ -339,9 +323,14 @@ def edit_vehicle(vehicle_id):
         'documents_expiry': row[12].strftime('%Y-%m-%d') if row[12] else '',
         'driver_id': row[13],
         'date_of_join': row[14].strftime('%Y-%m-%d') if row[14] else '',
+        'avg': row[15] if row[15] is not None else 0
     }
 
     return render_template('edit_vehicle.html', vehicle=vehicle_data, user=session.get('user', ''))
+
+
+
+
 
 # --------- DRIVER MASTER -----------
 @app.route('/driver_master', methods=['GET', 'POST'])
@@ -1156,7 +1145,7 @@ def get_optimized_routes():
         for _, order in assigned_orders.iterrows():
             dist_km = round(
                 geodesic(get_coords(order['pickup_location_latlon']), get_coords(order['drop_location_latlon'])).km, 2)
-            expected_avg = fleet_df.loc[vehicle_id, 'expected_avg'] if 'expected_avg' in fleet_df.columns else 12
+            expected_avg = fleet_df.loc[vehicle_id, 'avg'] if 'avg' in fleet_df.columns else 12
             fuel_used_l = round(dist_km / expected_avg, 2) if expected_avg > 0 else 0
             fuel_cost = round(fuel_used_l * 100, 2)  # Assume fuel cost = ₹100 per liter
             actual_avg = round(dist_km / fuel_used_l, 2) if fuel_used_l > 0 else 0
