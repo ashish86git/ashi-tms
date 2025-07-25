@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, session, send_file,flash,jsonify
 import pandas as pd
 import os
+import requests
 import psycopg2
 from flask_sqlalchemy import SQLAlchemy
 from folium.plugins import Fullscreen
@@ -20,8 +21,12 @@ from geopy.distance import geodesic
 import uuid
 from datetime import datetime,date, timedelta
 
+
+UPLOAD_FOLDER = os.path.join('static', 'uploads')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app = Flask(__name__)
 app.secret_key = 'tms-secret-key'
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Import your models and db
 from models import db, Fleet, DriverMaster, Order
@@ -31,8 +36,7 @@ DATA_PATH = "data/"
 orders_data = []
 geolocator = Nominatim(user_agent="tms")
 
-UPLOAD_FOLDER = os.path.join('static', 'uploads')
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
 
 app.config['SQLALCHEMY_DATABASE_URI'] = (
     'postgresql://{user}:{password}@{host}:{port}/{database}'.format(
@@ -1266,6 +1270,205 @@ def financial():
     summary['unique_dates'] = sorted(summary['unique_dates'])
 
     return render_template("financial_dashboard.html", routes=routes, summary=summary)
+
+
+
+all_indents = []
+
+def get_all_vehicle_numbers():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT license_plate FROM fleet")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return [row[0] for row in rows]  # List of license plates
+
+@app.route("/def", methods=["GET", "POST"])
+def def_page():
+    valid_vehicles = get_all_vehicle_numbers()
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    if request.method == "POST":
+        new_indent = request.form.to_dict()
+        vehicle_no = new_indent.get("vehicle_number", "").strip()
+
+        if vehicle_no not in valid_vehicles:
+            flash(f"Invalid Vehicle Number: {vehicle_no}", "danger")
+        else:
+            # Insert into database
+            cursor.execute("""
+                INSERT INTO indents (
+                    indent_date, indent, allocation_date, customer_name, range, location,
+                    vehicle_number, vehicle_model, vehicle_based, lr_no, material,
+                    load_per_bucket, no_of_buckets, t_load, pod_received,
+                    freight_tiger_number, freight_tiger_month
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                new_indent.get("indent_date"),
+                new_indent.get("indent"),
+                new_indent.get("allocation_date"),
+                new_indent.get("customer_name"),
+                new_indent.get("range"),
+                new_indent.get("location"),
+                new_indent.get("vehicle_number"),
+                new_indent.get("vehicle_model"),
+                new_indent.get("vehicle_based"),
+                new_indent.get("lr_no"),
+                new_indent.get("material"),
+                new_indent.get("load_per_bucket"),
+                new_indent.get("no_of_buckets"),
+                new_indent.get("t_load"),
+                new_indent.get("pod_received"),
+                new_indent.get("freight_tiger_number"),
+                new_indent.get("freight_tiger_month")
+            ))
+            conn.commit()
+            flash("New indent created successfully!", "success")
+
+        cursor.close()
+        conn.close()
+        return redirect(url_for("def_page"))
+
+    # Fetch all indents from DB
+    cursor.execute("SELECT * FROM indents")
+    rows = cursor.fetchall()
+    col_names = [desc[0] for desc in cursor.description]
+    indent_data = [dict(zip(col_names, row)) for row in rows]
+
+    cursor.close()
+    conn.close()
+    return render_template("def.html", indent_data=indent_data, fleet_data=valid_vehicles)
+
+
+
+@app.route("/upload_indent", methods=["POST"])
+def upload_indent():
+    valid_vehicles = get_all_vehicle_numbers()
+    file = request.files.get("file")
+
+    if not file:
+        flash("No file selected.", "danger")
+        return redirect(url_for("def_page"))
+
+    try:
+        filename = file.filename
+        if filename.endswith(".csv"):
+            df = pd.read_csv(file)
+        elif filename.endswith((".xlsx", ".xls")):
+            df = pd.read_excel(file)
+        else:
+            flash("Unsupported file format.", "danger")
+            return redirect(url_for("def_page"))
+
+        if df.empty:
+            flash("Uploaded file is empty.", "warning")
+            return redirect(url_for("def_page"))
+
+        # Ensure 'vehicle_number' column exists
+        if 'vehicle_number' not in df.columns:
+            flash("Missing 'vehicle_number' column.", "danger")
+            return redirect(url_for("def_page"))
+
+        # Filter valid/invalid entries
+        valid_df = df[df["vehicle_number"].isin(valid_vehicles)]
+        invalid_df = df[~df["vehicle_number"].isin(valid_vehicles)]
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if not valid_df.empty:
+            records = valid_df.to_dict(orient="records")
+            for row in records:
+                cursor.execute("""
+                    INSERT INTO indents (
+                        indent_date, indent, allocation_date, customer_name, range, location,
+                        vehicle_number, vehicle_model, vehicle_based, lr_no, material,
+                        load_per_bucket, no_of_buckets, t_load, pod_received,
+                        freight_tiger_number, freight_tiger_month
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    row.get("indent_date"),
+                    row.get("indent"),
+                    row.get("allocation_date"),
+                    row.get("customer_name"),
+                    row.get("range"),
+                    row.get("location"),
+                    row.get("vehicle_number"),
+                    row.get("vehicle_model"),
+                    row.get("vehicle_based"),
+                    row.get("lr_no"),
+                    row.get("material"),
+                    row.get("load_per_bucket"),
+                    row.get("no_of_buckets"),
+                    row.get("t_load"),
+                    row.get("pod_received"),
+                    row.get("freight_tiger_number"),
+                    row.get("freight_tiger_month")
+                ))
+            conn.commit()
+            flash(f"{len(records)} valid indent(s) uploaded successfully!", "success")
+
+        if not invalid_df.empty:
+            flash(f"{len(invalid_df)} row(s) skipped due to invalid vehicle numbers.", "warning")
+
+        cursor.close()
+        conn.close()
+
+    except Exception as e:
+        flash(f"Error processing file: {str(e)}", "danger")
+
+    return redirect(url_for("def_page"))
+
+
+
+@app.route("/master_model")
+def master_model():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM master_model")
+    rows = cursor.fetchall()
+    col_names = [desc[0] for desc in cursor.description]
+    master_data = [dict(zip(col_names, row)) for row in rows]
+    cursor.close()
+    conn.close()
+    return render_template("master_model.html", rows=master_data)
+
+
+@app.route("/add", methods=["POST"])
+def add_row():
+    new_entry = {
+        "range": request.form["range"],
+        "product": request.form["product"],
+        "transport_rate": request.form["transport_rate"],
+        "loading_rate": request.form["loading_rate"],
+        "unloading_rate": request.form["unloading_rate"],
+        "modified_by": "Admin"
+    }
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO master_model (range, product, transport_rate, loading_rate, unloading_rate, modified_by)
+        VALUES (%s, %s, %s, %s, %s, %s)
+    """, (
+        new_entry["range"],
+        new_entry["product"],
+        new_entry["transport_rate"],
+        new_entry["loading_rate"],
+        new_entry["unloading_rate"],
+        new_entry["modified_by"]
+    ))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    flash("New business plan added successfully!", "success")
+    return redirect(url_for("master_model"))
+
+
 
 
 
