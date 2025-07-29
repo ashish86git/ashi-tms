@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, session, send_file,flash,jsonify
 import pandas as pd
 import os
+from collections import defaultdict
 import requests
 import psycopg2
 from flask_sqlalchemy import SQLAlchemy
@@ -1234,12 +1235,44 @@ def tracking():
 
 @app.route('/financial')
 def financial():
-    routes = get_optimized_routes()
-    if not routes:
-        return render_template("financial_report.html", routes=[], summary={})
+    conn = get_db_connection()
+    cur = conn.cursor()
 
-    # Grouping and Summary
-    from collections import defaultdict
+    # 🧾 Query to join the 3 tables
+    query = """
+    SELECT
+        f.vehicle_id,
+        f.driver_id,
+        f.vehicle_name,
+        f.model,
+        f.status,
+        f.license_plate,
+        f.date_of_join,
+        f.type,
+        i.indent_date,
+        i.vehicle_number,
+        i.vehicle_model,
+        i.lr_no,
+        i.customer_name,
+        i.range,
+        i.material,
+        i.no_of_buckets,
+        i.load_per_bucket,
+        mm.transport_rate,
+        mm.loading_rate,
+        mm.unloading_rate
+    FROM fleet f
+    LEFT JOIN indents i ON f.vehicle_id = i.vehicle_number
+    LEFT JOIN master_model mm ON i.range = mm.range AND i.vehicle_model = mm.product
+    """
+
+    cur.execute(query)
+    rows = cur.fetchall()
+
+    # ✍️ Column names (optional if using row dicts)
+    col_names = [desc[0] for desc in cur.description]
+
+    # 🔍 Summarizing Data
     summary = {
         'fuel_cost_by_vehicle': defaultdict(float),
         'profit_by_vehicle': defaultdict(float),
@@ -1249,20 +1282,49 @@ def financial():
         'unique_dates': set()
     }
 
-    for trip in routes:
-        v = trip['vehicle_id']
-        d = trip['driver_name']
-        date = trip['date']
+    routes = []
+    for row in rows:
+        data = dict(zip(col_names, row))
+        vehicle_id = data['vehicle_id']
+        driver_id = data['driver_id']
+        date = data['indent_date']
+        vehicle_model = data['vehicle_model']
+        indent_range = data['range']
+        no_of_buckets = data['no_of_buckets'] or 0
+        load_per_bucket = data['load_per_bucket'] or 0
+        transport_rate = data['transport_rate'] or 0
+        loading_rate = data['loading_rate'] or 0
+        unloading_rate = data['unloading_rate'] or 0
 
-        summary['fuel_cost_by_vehicle'][v] += trip['fuel_cost']
-        summary['profit_by_vehicle'][v] += trip['profit']
+        # Revenue calculation
+        total_load = no_of_buckets * load_per_bucket
+        revenue = (total_load * transport_rate) + loading_rate + unloading_rate
+
+        trip = {
+            'vehicle_id': vehicle_id,
+            'driver_name': driver_id,
+            'date': date,
+            'vehicle_model': vehicle_model,
+            'range': indent_range,
+            'fuel_cost': 0,  # Replace with actual if you have
+            'profit': revenue,
+            'orders': [data['lr_no']] if data['lr_no'] else []
+        }
+
+        routes.append(trip)
+
+        summary['fuel_cost_by_vehicle'][vehicle_id] += trip['fuel_cost']
+        summary['profit_by_vehicle'][vehicle_id] += trip['profit']
         if trip['orders']:
-            summary['orders_by_driver'][d] += 1
+            summary['orders_by_driver'][driver_id] += 1
 
-        summary['unique_vehicles'].add(v)
-        summary['unique_drivers'].add(d)
+        summary['unique_vehicles'].add(vehicle_id)
+        summary['unique_drivers'].add(driver_id)
         if date:
             summary['unique_dates'].add(date)
+
+    cur.close()
+    conn.close()
 
     # Convert sets to sorted lists
     summary['unique_vehicles'] = sorted(summary['unique_vehicles'])
@@ -1270,8 +1332,6 @@ def financial():
     summary['unique_dates'] = sorted(summary['unique_dates'])
 
     return render_template("financial_dashboard.html", routes=routes, summary=summary)
-
-
 
 all_indents = []
 
