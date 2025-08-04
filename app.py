@@ -1313,8 +1313,9 @@ def financial():
 
         routes.append(trip)
 
-        summary['fuel_cost_by_vehicle'][vehicle_id] += trip['fuel_cost']
-        summary['profit_by_vehicle'][vehicle_id] += trip['profit']
+        summary['fuel_cost_by_vehicle'][vehicle_id] += float(trip['fuel_cost'])
+        summary['profit_by_vehicle'][vehicle_id] += float(trip['profit'])
+
         if trip['orders']:
             summary['orders_by_driver'][driver_id] += 1
 
