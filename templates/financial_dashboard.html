@@ -12,24 +12,30 @@
   <div class="card shadow-sm p-4 mb-5">
     <div class="row g-4">
       <div class="col-md-3">
-        <label class="form-label fw-semibold">Date</label>
+        <label class="form-label fw-semibold">Indent Date</label>
         <select id="filterDate" class="form-select">
           <option value="All">All</option>
-          {% for d in summary.unique_dates %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
+          {% for d in summary.unique_dates %}
+            <option value="{{ d }}">{{ d }}</option>
+          {% endfor %}
         </select>
       </div>
       <div class="col-md-3">
         <label class="form-label fw-semibold">Driver</label>
         <select id="filterDriver" class="form-select">
           <option value="All">All</option>
-          {% for d in summary.unique_drivers %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
+          {% for d in summary.unique_drivers %}
+            <option value="{{ d }}">{{ d }}</option>
+          {% endfor %}
         </select>
       </div>
       <div class="col-md-3">
         <label class="form-label fw-semibold">Vehicle</label>
         <select id="filterVehicle" class="form-select">
           <option value="All">All</option>
-          {% for v in summary.unique_vehicles %}<option value="{{ v }}">{{ v }}</option>{% endfor %}
+          {% for v in summary.unique_vehicles %}
+            <option value="{{ v }}">{{ v }}</option>
+          {% endfor %}
         </select>
       </div>
       <div class="col-md-3">
@@ -85,30 +91,45 @@
         <table id="tripTable" class="table table-hover mb-0 align-middle">
           <thead class="table-light">
             <tr>
-              <th>Vehicle</th><th>Driver</th><th>Date</th><th>Pickup</th><th>Drop</th>
-              <th>Distance (km)</th><th>Fuel Used (L)</th><th>Fuel Cost (₹)</th><th>Amount (₹)</th>
-              <th>Profit (₹)</th><th>Service</th><th>Expected Avg</th><th>Actual Avg</th>
+              <th>Vehicle</th>
+              <th>Driver</th>
+              <th>Indent Date</th>
+              <th>Pickup</th>
+              <th>Drop</th>
+              <th>Total Km (TpT)</th>
+              <th>Rate</th>
+              <th>Total Cost</th>
+              <th>Total Cost (Loading)</th>
+              <th>Criteria</th>
+              <th>Total Cost (Unload)</th>
+              <th>Any Other Cost</th>
+              <th>Total Cost (Final)</th>
+              <th>Criteria</th>
+              <th>Cost</th>
+              <th>Revenue</th>
+              <th>P & L</th>
             </tr>
           </thead>
           <tbody>
             {% for t in routes %}
-              <tr data-pickup-lat="{{ t.pickup_coords[0] if t.pickup_coords else '' }}"
-                  data-pickup-lon="{{ t.pickup_coords[1] if t.pickup_coords else '' }}"
-                  data-drop-lat="{{ t.drop_coords[0] if t.drop_coords else '' }}"
-                  data-drop-lon="{{ t.drop_coords[1] if t.drop_coords else '' }}">
+              <tr>
                 <td>{{ t.vehicle_id }}</td>
                 <td>{{ t.driver_name }}</td>
-                <td>{{ t.date }}</td>
+                <td>{{ t.indent_date }}</td>
                 <td>{{ t.pickup }}</td>
                 <td>{{ t.drop }}</td>
-                <td>{{ t.distance_km }}</td>
-                <td>{{ t.fuel_used_l }}</td>
-                <td>{{ t.fuel_cost }}</td>
-                <td>{{ t.amount }}</td>
-                <td>{{ t.profit }}</td>
-                <td>{{ t.service_suggestion }}</td>
-                <td>{{ t.avg_expected }}</td>
-                <td>{{ t.avg_actual }}</td>
+                <td>{{ t.total_km }}</td>
+                <td>{{ t.rate }}</td>
+                <td>{{ t.total_cost }}</td>
+                <td>{{ t.total_cost_loading }}</td>
+                <td>{{ t.criteria_loading }}</td>
+                <td>{{ t.total_cost_unload }}</td>
+                <td>{{ t.other_cost }}</td>
+                <td>{{ t.final_total_cost }}</td>
+                <td>{{ t.criteria_unload }}</td>
+                <td>{{ t.cost }}</td>
+                <td>{{ t.revenue }}</td>
+                <td>{{ t.pnl }}</td>
               </tr>
             {% endfor %}
           </tbody>
@@ -124,6 +145,6 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
 <script>
-// 🧠 Keep your chart rendering and filter logic here as before
+// Your chart & filtering logic goes here
 </script>
 {% endblock %}
