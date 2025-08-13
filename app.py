@@ -406,6 +406,13 @@ def get_all_vehicle_numbers():
     conn.close()
     return [row[0] for row in rows]
 
+def clean_numeric(value):
+    if value is None:
+        return None
+    if isinstance(value, str) and value.strip() == "":
+        return None
+    return value
+
 
 @app.route("/def", methods=["GET", "POST"])
 def def_page():
@@ -431,14 +438,26 @@ def def_page():
                         t_load, pod_received, freight_tiger_number, freight_tiger_month
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
-                    new_indent.get("indent_date"), new_indent.get("indent"), new_indent.get("allocation_date"),
-                    new_indent.get("customer_name"), new_indent.get("range"), new_indent.get("pickup_location"),
-                    new_indent.get("location"), new_indent.get("vehicle_number"), new_indent.get("vehicle_model"),
-                    new_indent.get("vehicle_based"), new_indent.get("lr_no"), new_indent.get("material"),
-                    new_indent.get("load_per_bucket"), new_indent.get("no_of_buckets"), new_indent.get("t_load"),
-                    new_indent.get("pod_received"), new_indent.get("freight_tiger_number"),
+                    new_indent.get("indent_date"),
+                    new_indent.get("indent"),
+                    new_indent.get("allocation_date"),
+                    new_indent.get("customer_name"),
+                    new_indent.get("range"),
+                    new_indent.get("pickup_location"),
+                    new_indent.get("location"),
+                    new_indent.get("vehicle_number"),
+                    new_indent.get("vehicle_model"),
+                    new_indent.get("vehicle_based"),
+                    new_indent.get("lr_no"),
+                    new_indent.get("material"),
+                    clean_numeric(new_indent.get("load_per_bucket")),
+                    clean_numeric(new_indent.get("no_of_buckets")),
+                    clean_numeric(new_indent.get("t_load")),
+                    new_indent.get("pod_received"),
+                    new_indent.get("freight_tiger_number"),
                     new_indent.get("freight_tiger_month")
                 ))
+
                 conn.commit()
                 flash("New indent created successfully!", "success")
             except Exception as e:
@@ -461,9 +480,20 @@ def def_page():
     return render_template("def.html", indent_data=indent_data, fleet_data=valid_vehicles)
 
 
+def clean_numeric(value):
+    if value is None:
+        return None
+    if pd.isna(value):
+        return None
+    if isinstance(value, str) and value.strip() == "":
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
 @app.route("/upload_indent", methods=["POST"])
 def upload_indent():
-    """Handles the file upload for bulk indent creation."""
     valid_vehicles = get_all_vehicle_numbers()
     file = request.files.get("file")
 
@@ -481,6 +511,9 @@ def upload_indent():
             flash("Unsupported file format.", "danger")
             return redirect(url_for("def_page"))
 
+        # Replace NaN with None
+        df = df.where(pd.notnull(df), None)
+
         if df.empty:
             flash("Uploaded file is empty.", "warning")
             return redirect(url_for("def_page"))
@@ -489,15 +522,13 @@ def upload_indent():
             flash("Missing 'vehicle_number' column.", "danger")
             return redirect(url_for("def_page"))
 
-        # Filter valid and invalid entries
         valid_df = df[df["vehicle_number"].isin(valid_vehicles)]
         invalid_df = df[~df["vehicle_number"].isin(valid_vehicles)]
 
         conn = get_db_connection()
-        cursor = conn.cursor()  # --- CORRECTED: Using a cursor for execution ---
+        cursor = conn.cursor()
 
         if not valid_df.empty:
-            # --- CORRECTED: Using cursor.execute with %s placeholders ---
             sql = """
                 INSERT INTO indents (
                     indent_date, indent, allocation_date, customer_name, "range",
@@ -507,18 +538,26 @@ def upload_indent():
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             for index, row in valid_df.iterrows():
-                try:
-                    cursor.execute(sql, (
-                        row.get("indent_date"), row.get("indent"), row.get("allocation_date"),
-                        row.get("customer_name"), row.get("range"), row.get("pickup_location"),
-                        row.get("location"), row.get("vehicle_number"), row.get("vehicle_model"),
-                        row.get("vehicle_based"), row.get("lr_no"), row.get("material"),
-                        row.get("load_per_bucket"), row.get("no_of_buckets"), row.get("t_load"),
-                        row.get("pod_received"), row.get("freight_tiger_number"), row.get("freight_tiger_month")
-                    ))
-                except Exception as e:
-                    # Log error but continue with other rows
-                    print(f"Error inserting row {index}: {e}")
+                cursor.execute(sql, (
+                    row.get("indent_date"),
+                    row.get("indent"),
+                    row.get("allocation_date"),
+                    row.get("customer_name"),
+                    row.get("range"),
+                    row.get("pickup_location"),
+                    row.get("location"),
+                    row.get("vehicle_number"),
+                    row.get("vehicle_model"),
+                    row.get("vehicle_based"),
+                    row.get("lr_no"),
+                    row.get("material"),
+                    clean_numeric(row.get("load_per_bucket")),
+                    clean_numeric(row.get("no_of_buckets")),
+                    clean_numeric(row.get("t_load")),
+                    row.get("pod_received"),
+                    row.get("freight_tiger_number"),
+                    row.get("freight_tiger_month")
+                ))
 
             conn.commit()
             flash(f"{len(valid_df)} valid indent(s) uploaded successfully!", "success")
@@ -533,6 +572,7 @@ def upload_indent():
         flash(f"Error processing file: {str(e)}", "danger")
 
     return redirect(url_for("def_page"))
+
 
 
 @app.route("/export_indents")
