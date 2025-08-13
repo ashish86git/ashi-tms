@@ -24,11 +24,14 @@
                         <th>Address</th>
                         <th>Availability</th>
                         <th>Shift</th>
+                        <!-- New Column for Financials -->
+                        <th>Salary</th>
                         <th>Aadhar</th>
                         <th>License</th>
                     </tr>
                 </thead>
                 <tbody>
+                    <!-- Assuming your Flask route passes a combined dictionary for each row -->
                     {% for row in data %}
                     <tr>
                         <td>{{ row.driver_id }}</td>
@@ -38,6 +41,8 @@
                         <td>{{ row.address }}</td>
                         <td>{{ row.availability }}</td>
                         <td>{{ row.shift_info }}</td>
+                        <!-- Displaying the new salary data -->
+                        <td>{{ row.salary }}</td>
                         <td>
                             {% if row.aadhar_file %}
                                 <a href="{{ url_for('static', filename='uploads/' + row.aadhar_file) }}" target="_blank" class="btn btn-outline-primary btn-sm">View</a>
@@ -94,6 +99,11 @@
                     <div class="col-md-6">
                         <label class="form-label">Shift Info</label>
                         <input type="text" name="shift_info" class="form-control" required>
+                    </div>
+                    <!-- New Form Field for Salary -->
+                    <div class="col-md-6">
+                        <label class="form-label">Salary</label>
+                        <input type="text" name="salary" class="form-control" required>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Upload Aadhar</label>

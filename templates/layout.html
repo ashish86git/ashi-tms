@@ -203,6 +203,9 @@
     </a>
 
     <h5>Transport Management</h5>
+    <a href="/def" class="list-group-item {% if request.path == '/def' %}active{% endif %}">
+      <i class="bi bi-file-earmark-text-fill text-primary"></i> DEF
+    </a>
     <a href="/orders" class="list-group-item {% if request.path == '/orders' %}active{% endif %}">
       <i class="bi bi-box-seam text-primary"></i> Orders
     </a>
@@ -212,6 +215,8 @@
     <a href="/tracking" class="list-group-item {% if request.path == '/tracking' %}active{% endif %}">
       <i class="bi bi-geo-alt-fill text-info"></i> GPS Tracking
     </a>
+
+
     <a href="/download-report" class="list-group-item {% if request.path == '/download-report' %}active{% endif %}">
       <i class="bi bi-download text-success"></i> Download Report
     </a>
