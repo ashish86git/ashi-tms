@@ -23,14 +23,14 @@
       <thead class="table-primary">
         <tr>
           {% set cols = [
-            'Vehicle ID', 'Vehicle Name', 'Driver id', 'Date of Join', 'Make',
+            'Vehicle ID', 'Vehicle Name', 'Driver Name', 'Date of Join', 'Make',
             'Model', 'VIN','Avg', 'Status', 'Type', 'Group', 'Current Meter',
             'License Plate', 'Capacity Weight', 'Capacity Volume', 'Documents Expiry'
           ] %}
           {% for col in cols %}
           <th class="sortable" data-key="{{ col | lower | replace(' ', '_') }}" style="cursor: pointer;">
             {{ col }}
-            {% if col in ['Vehicle ID', 'Driver id', 'Documents Expiry'] %}
+            {% if col in ['Vehicle ID', 'Driver Name', 'Documents Expiry'] %}
               <i class="bi bi-arrow-down-up ms-1"></i>
             {% endif %}
           </th>
@@ -82,7 +82,7 @@
           {% set fields = [
             ('Vehicle ID', 'vehicle_id', 'text'),
             ('Vehicle Name', 'vehicle_name', 'text'),
-            ('Driver id', 'driver_id', 'text'),
+            ('Driver Name', 'driver_id', 'text'),
             ('Date of Join', 'date_of_join', 'date'),
             ('Make', 'make', 'text'),
             ('Model', 'model', 'text'),
