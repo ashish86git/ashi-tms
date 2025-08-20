@@ -322,6 +322,11 @@ def driver_master():
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
+    # --- Fetch fleet vehicle_ids for dropdown ---
+    cur.execute("SELECT vehicle_id FROM fleet")
+    fleet_rows = cur.fetchall()
+    fleet_data = [row['vehicle_id'] for row in fleet_rows]
+
     if request.method == 'POST':
         form_data = request.form.to_dict()
 
@@ -340,20 +345,19 @@ def driver_master():
             license_file.save(license_path)
 
         try:
-            # 1. Insert into driver_master table
+            # --- Insert into driver_master table including vehicle_id ---
             cur.execute("""
                 INSERT INTO driver_master (
                     driver_id, driver_name, license_number, contact_number,
-                    address, availability, shift_info, aadhar_file, license_file
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    address, availability, shift_info, vehicle_id, aadhar_file, license_file
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 form_data['driver_id'], form_data['driver_name'], form_data['license_number'],
                 form_data['contact_number'], form_data['address'], form_data['availability'],
-                form_data['shift_info'], aadhar_filename, license_filename
+                form_data['shift_info'], form_data['vehicle_id'], aadhar_filename, license_filename
             ))
 
-            # 2. Insert into driver_financials table
-            # Assuming 'salary' is a field in your HTML form
+            # Insert into driver_financials table (salary)
             salary = Decimal(form_data.get('salary', 0))
             cur.execute("""
                 INSERT INTO driver_financials (driver_id, salary)
@@ -371,7 +375,7 @@ def driver_master():
 
         return redirect(url_for('driver_master'))
 
-    # Fetch all drivers using a LEFT JOIN to include financial data
+    # Fetch all drivers using LEFT JOIN to include financial data
     cur.execute("""
         SELECT
             dm.driver_id,
@@ -381,6 +385,7 @@ def driver_master():
             dm.address,
             dm.availability,
             dm.shift_info,
+            dm.vehicle_id,
             dm.aadhar_file,
             dm.license_file,
             df.salary
@@ -392,19 +397,25 @@ def driver_master():
     cur.close()
     conn.close()
 
-    return render_template('driver_master.html', data=data)
+    return render_template('driver_master.html', data=data, fleet_data=fleet_data)
+
 
 
 # -------------------------- Indent Management Routes --------------------------
 
 def get_all_vehicle_numbers():
-    """Retrieves all valid vehicle license plates from the fleet table."""
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT license_plate FROM fleet")
+    cursor.execute("SELECT vehicle_id FROM fleet")   # 🔹 vehicle_id fetch
     rows = cursor.fetchall()
+    cursor.close()
     conn.close()
-    return [row[0] for row in rows]
+
+    # सिर्फ vehicle_id की list बनाएं
+    return [row[0] for row in rows if row[0]]
+
+
+
 
 def clean_numeric(value):
     if value is None:
@@ -417,7 +428,7 @@ def clean_numeric(value):
 @app.route("/def", methods=["GET", "POST"])
 def def_page():
     """Main route for displaying and adding indents."""
-    valid_vehicles = get_all_vehicle_numbers()
+    valid_vehicles = get_all_vehicle_numbers()   # ✅ अब सारे vehicles आएंगे
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -429,7 +440,6 @@ def def_page():
             flash(f"Invalid Vehicle Number: {vehicle_no}", "danger")
         else:
             try:
-                # --- CORRECTED: Using cursor.execute and %s placeholders ---
                 cursor.execute("""
                     INSERT INTO indents (
                         indent_date, indent, allocation_date, customer_name, "range",
@@ -457,7 +467,6 @@ def def_page():
                     new_indent.get("freight_tiger_number"),
                     new_indent.get("freight_tiger_month")
                 ))
-
                 conn.commit()
                 flash("New indent created successfully!", "success")
             except Exception as e:
@@ -468,7 +477,7 @@ def def_page():
         conn.close()
         return redirect(url_for("def_page"))
 
-    # Fetch all indents for the GET request
+    # Fetch all indents
     cursor.execute("SELECT * FROM indents")
     rows = cursor.fetchall()
     col_names = [desc[0] for desc in cursor.description]
@@ -477,6 +486,7 @@ def def_page():
     cursor.close()
     conn.close()
 
+    valid_vehicles = get_all_vehicle_numbers()
     return render_template("def.html", indent_data=indent_data, fleet_data=valid_vehicles)
 
 
@@ -648,12 +658,17 @@ def calculate_distance(pickup, drop):
         return 80
     return 150
 
+def safe_decimal(value, default=0):
+    try:
+        return Decimal(value if value is not None else default)
+    except:
+        return Decimal(default)
 
 @app.route('/financial')
 def financial():
     """Generates and displays the financial dashboard."""
     conn = get_db_connection()
-    cur = conn.cursor()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
 
     fuel_price_per_liter = Decimal('96.0')
     fuel_efficiency_kmpl = Decimal('12.0')
@@ -663,48 +678,79 @@ def financial():
 
     query = """
     SELECT
-        f.vehicle_id, f.driver_id, f.license_plate, i.indent_date,
-        i.pickup_location, i.location AS drop_location, i.lr_no,
-        i.customer_name, i."range", i.material, i.no_of_buckets,
-        i.load_per_bucket, mm.transport_rate, mm.loading_rate, mm.unloading_rate
+        f.vehicle_id,
+        f.driver_id,
+        f.license_plate,
+        i.indent_date,
+        i.pickup_location,
+        i.location AS drop_location,
+        i.lr_no,
+        i.customer_name,
+        i."range",
+        i.material,
+        i.no_of_buckets,
+        i.load_per_bucket,
+        mm.transport_rate,
+        mm.loading_rate,
+        mm.unloading_rate,
+        dm.driver_name,
+        dm.license_number,
+        dm.contact_number,
+        dm.shift_info,
+        df.salary AS driver_salary
     FROM fleet f
-    LEFT JOIN indents i ON f.license_plate = i.vehicle_number
-    LEFT JOIN master_model mm ON i."range" = mm."range" AND f.model = mm.product
-    WHERE i.indent_date IS NOT NULL
+    LEFT JOIN indents i 
+        ON f.vehicle_id::text = i.vehicle_number
+    LEFT JOIN master_model mm 
+        ON i."range" = mm."range" AND f.model = mm.product
+    LEFT JOIN driver_master dm 
+        ON f.driver_id = dm.driver_id
+    LEFT JOIN driver_financials df 
+        ON dm.driver_id = df.driver_id
+    WHERE i.indent_date IS NOT NULL;
     """
 
     cur.execute(query)
     rows = cur.fetchall()
-    col_names = [desc[0] for desc in cur.description]
 
     summary = defaultdict(lambda: defaultdict(Decimal))
     routes = []
     cost_per_km_fuel = fuel_price_per_liter / fuel_efficiency_kmpl
 
-    for row in rows:
-        data = dict(zip(col_names, row))
-        no_of_buckets = Decimal(data.get('no_of_buckets', 0) or 0)
-        load_per_bucket = Decimal(data.get('load_per_bucket', 0) or 0)
-        total_km = Decimal(calculate_distance(data['pickup_location'], data['drop_location']))
-        transport_rate = Decimal(data.get('transport_rate', 0) or 0)
-        loading_rate = Decimal(data.get('loading_rate', 0) or 0)
-        unloading_rate = Decimal(data.get('unloading_rate', 0) or 0)
+    for data in rows:
+        no_of_buckets = safe_decimal(data.get('no_of_buckets'))
+        load_per_bucket = safe_decimal(data.get('load_per_bucket'))
+        total_km = safe_decimal(calculate_distance(data['pickup_location'], data['drop_location']))
+        transport_rate = safe_decimal(data.get('transport_rate'))
+        loading_rate = safe_decimal(data.get('loading_rate'))
+        unloading_rate = safe_decimal(data.get('unloading_rate'))
+        driver_salary_val = safe_decimal(data.get('driver_salary'), driver_salary_per_trip)
 
         total_load = no_of_buckets * load_per_bucket
         revenue = (total_load * transport_rate) + loading_rate + unloading_rate
         fuel_cost = total_km * cost_per_km_fuel
-        total_cost = fuel_cost + driver_salary_per_trip + toll_tax_per_trip + misc_cost_per_trip
+        total_cost = fuel_cost + driver_salary_val + toll_tax_per_trip + misc_cost_per_trip
         pnl = revenue - total_cost
 
         trip = {
-            'vehicle_id': data['vehicle_id'], 'driver_id': data['driver_id'],
-            'indent_date': data['indent_date'], 'pickup_location': data['pickup_location'],
-            'drop_location': data['drop_location'], 'total_km': total_km,
-            'transport_rate': transport_rate, 'total_cost_loading': loading_rate,
-            'criteria': 'N/A', 'total_cost_unloading': unloading_rate,
+            'vehicle_id': data['vehicle_id'],
+            'driver_id': data['driver_id'],
+            'driver_name': data.get('driver_name'),
+            'license_number': data.get('license_number'),
+            'contact_number': data.get('contact_number'),
+            'shift_info': data.get('shift_info'),
+            'indent_date': data['indent_date'],
+            'pickup_location': data['pickup_location'],
+            'drop_location': data['drop_location'],
+            'total_km': total_km,
+            'transport_rate': transport_rate,
+            'total_cost_loading': loading_rate,
+            'total_cost_unloading': unloading_rate,
             'any_other_cost': toll_tax_per_trip + misc_cost_per_trip,
-            'total_cost_final': total_cost, 'cost': total_cost,
-            'revenue': revenue, 'pnl': pnl
+            'total_cost_final': total_cost,
+            'cost': total_cost,
+            'revenue': revenue,
+            'pnl': pnl
         }
         routes.append(trip)
 
