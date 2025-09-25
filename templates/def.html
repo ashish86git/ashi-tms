@@ -110,155 +110,110 @@
 
         {# ── 1st Row ── #}
         <div class="col-md-3">
-          <label class="form-label">
-            Indent Date
-            <i class="bi bi-info-circle" data-bs-toggle="tooltip" title="Date the indent was issued"></i>
-          </label>
+          <label class="form-label">Indent Date</label>
           <input type="date" name="indent_date" class="form-control shadow-sm" />
         </div>
         <div class="col-md-3">
-          <label class="form-label">
-            Indent #
-            <i class="bi bi-info-circle" data-bs-toggle="tooltip" title="Unique indent identifier"></i>
-          </label>
+          <label class="form-label">Indent #</label>
           <input type="text" name="indent" class="form-control shadow-sm" />
         </div>
         <div class="col-md-3">
-          <label class="form-label">
-            Allocation Date
-            <i class="bi bi-info-circle" data-bs-toggle="tooltip" title="Date when vehicle allocated"></i>
-          </label>
+          <label class="form-label">Allocation Date</label>
           <input type="date" name="allocation_date" class="form-control shadow-sm" />
         </div>
         <div class="col-md-3">
-          <label class="form-label">
-            Customer Name
-            <i class="bi bi-person" data-bs-toggle="tooltip" title="Consignee / Client"></i>
-          </label>
+          <label class="form-label">Customer Name</label>
           <input type="text" name="customer_name" class="form-control shadow-sm" />
         </div>
 
         {# ── 2nd Row ── #}
         <div class="col-md-3">
-          <label class="form-label">
-            Range
-            <i class="bi bi-arrows-expand" data-bs-toggle="tooltip" title="Distance bucket in KM"></i>
-          </label>
+          <label class="form-label">Range</label>
           <select name="range" id="rangeSelector" required class="form-select shadow-sm">
             <option value="">-- Select Range --</option>
-            <option value="0-100">0‑100</option>
-            <option value="101-250">101‑250</option>
-            <option value="251-400">251‑400</option>
+            <option value="0-100">0-100</option>
+            <option value="101-250">101-250</option>
+            <option value="251-400">251-400</option>
             <option value="custom">Customize</option>
           </select>
         </div>
 
         <div class="col-md-3">
-          <label class="form-label">
-            Pickup Location
-            <i class="bi bi-geo-alt" data-bs-toggle="tooltip" title="Starting location for the vehicle"></i>
-          </label>
+          <label class="form-label">Pickup Location</label>
           <input type="text" name="pickup_location" value="Sonipat" required class="form-control shadow-sm" />
         </div>
 
-        <div class="col-md-3">
+        {# ⬇️ Location को हटा दिया और उसकी जगह Drop Locations लगा दिया #}
+        <div class="col-md-6">
           <label class="form-label">
-            Location
-            <i class="bi bi-geo-alt" data-bs-toggle="tooltip" title="Loading / unloading point"></i>
+            Drop Location(s)
+            <i class="bi bi-geo-alt-fill" data-bs-toggle="tooltip" title="One or more unloading points"></i>
           </label>
-          <input type="text" name="location" required class="form-control shadow-sm" />
+          <div id="dropLocationContainer">
+            <div class="input-group mb-2">
+              <input type="text" name="drop_locations[]" class="form-control shadow-sm" placeholder="Enter drop location" />
+              <button type="button" class="btn btn-outline-secondary addDropLocation">
+                <i class="bi bi-plus"></i>
+              </button>
+            </div>
+          </div>
         </div>
+
+        {# ── 3rd Row ── #}
         <div class="col-md-3">
-          <label class="form-label">
-            Vehicle Number
-            <i class="bi bi-truck" data-bs-toggle="tooltip" title="Select from fleet"></i>
-          </label>
+          <label class="form-label">Vehicle Number</label>
           <select name="vehicle_number" required class="form-select shadow-sm">
             <option value="">-- Select Vehicle --</option>
             {% for v in fleet_data %}
               <option value="{{ v }}">{{ v }}</option>
             {% endfor %}
-
           </select>
         </div>
-
-        {# ── 3rd Row ── #}
         <div class="col-md-3">
-          <label class="form-label">
-            Vehicle Model
-            <i class="bi bi-card-list" data-bs-toggle="tooltip" title="Model or make of vehicle"></i>
-          </label>
+          <label class="form-label">Vehicle Model</label>
           <input type="text" name="vehicle_model" class="form-control shadow-sm" />
         </div>
-        {% set tip = "City or base location of vehicle" %}
         <div class="col-md-3">
-          <label class="form-label">
-            Vehicle Based
-            <i class="bi bi-building" data-bs-toggle="tooltip" title="{{ tip }}"></i>
-          </label>
+          <label class="form-label">Vehicle Based</label>
           <input type="text" name="vehicle_based" class="form-control shadow-sm" />
         </div>
         <div class="col-md-3">
-          <label class="form-label">
-            LR No.
-            <i class="bi bi-file-earmark-text" data-bs-toggle="tooltip" title="Lorry Receipt Number"></i>
-          </label>
+          <label class="form-label">LR No.</label>
           <input type="text" name="lr_no" class="form-control shadow-sm" />
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">
-            Material
-            <i class="bi bi-box" data-bs-toggle="tooltip" title="Cargo description"></i>
-          </label>
-          <input type="text" name="material" class="form-control shadow-sm" />
         </div>
 
         {# ── 4th Row ── #}
         <div class="col-md-3">
-          <label class="form-label">
-            Load per Bucket/Barrels (Kg)
-            <i class="bi bi-bucket" data-bs-toggle="tooltip" title="Load per bucket"></i>
-          </label>
+          <label class="form-label">Material</label>
+          <input type="text" name="material" class="form-control shadow-sm" />
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Load per Bucket/Barrels (Kg)</label>
           <input type="number" name="load_per_bucket" id="loadPerBucket" class="form-control shadow-sm" />
         </div>
         <div class="col-md-3">
-          <label class="form-label">
-            No. Buckets/Barrels
-            <i class="bi bi-collection" data-bs-toggle="tooltip" title="Total containers"></i>
-          </label>
+          <label class="form-label">No. Buckets/Barrels</label>
           <input type="number" name="no_of_buckets" id="noOfBuckets" class="form-control shadow-sm" />
         </div>
         <div class="col-md-3">
-          <label class="form-label">
-            Total Load (Kg)
-            <i class="bi bi-sliders" data-bs-toggle="tooltip" title="Total cargo weight"></i>
-          </label>
+          <label class="form-label">Total Load (Kg)</label>
           <input type="number" name="t_load" id="totalLoad" class="form-control shadow-sm" readonly />
         </div>
+
+        {# ── 5th Row ── #}
         <div class="col-md-3">
-          <label class="form-label">
-            POD Received
-            <i class="bi bi-card-checklist" data-bs-toggle="tooltip" title="Proof of delivery received?"></i>
-          </label>
+          <label class="form-label">POD Received</label>
           <select name="pod_received" class="form-select shadow-sm">
             <option value="Yes">Yes</option>
             <option value="No">No</option>
           </select>
         </div>
-
-        {# ── 5th Row ── #}
         <div class="col-md-3">
-          <label class="form-label">
-            Freight Tiger No.
-            <i class="bi bi-hash" data-bs-toggle="tooltip" title="Tracking number"></i>
-          </label>
+          <label class="form-label">Freight Tiger No.</label>
           <input type="text" name="freight_tiger_number" class="form-control shadow-sm" />
         </div>
         <div class="col-md-3">
-          <label class="form-label">
-            Freight Tiger Month
-            <i class="bi bi-calendar" data-bs-toggle="tooltip" title="Month of Freight Tiger invoice"></i>
-          </label>
+          <label class="form-label">Freight Tiger Month</label>
           <input type="month" name="freight_tiger_month" class="form-control shadow-sm" />
         </div>
 
@@ -274,48 +229,44 @@
 
 </div>
 
-{# ── Enable tooltips site‑wide ── #}
+{# ── Scripts ── #}
 <script>
   document.addEventListener('DOMContentLoaded', () => {
-    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle=\"tooltip\"]'));
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
     tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
   });
+
+  document.addEventListener('DOMContentLoaded', function () {
+    const loadPerBucket = document.getElementById('loadPerBucket');
+    const noOfBuckets = document.getElementById('noOfBuckets');
+    const totalLoad = document.getElementById('totalLoad');
+    function calculateTotalLoad() {
+      const load = parseFloat(loadPerBucket.value) || 0;
+      const buckets = parseFloat(noOfBuckets.value) || 0;
+      totalLoad.value = load * buckets;
+    }
+    loadPerBucket.addEventListener('input', calculateTotalLoad);
+    noOfBuckets.addEventListener('input', calculateTotalLoad);
+  });
+
+  document.addEventListener("DOMContentLoaded", function () {
+    const container = document.getElementById("dropLocationContainer");
+    container.addEventListener("click", function (e) {
+      if (e.target.closest(".addDropLocation")) {
+        const newInputGroup = document.createElement("div");
+        newInputGroup.className = "input-group mb-2";
+        newInputGroup.innerHTML = `
+          <input type="text" name="drop_locations[]" class="form-control shadow-sm" placeholder="Enter drop location" />
+          <button type="button" class="btn btn-outline-danger removeDropLocation">
+            <i class="bi bi-dash"></i>
+          </button>`;
+        container.appendChild(newInputGroup);
+      }
+      if (e.target.closest(".removeDropLocation")) {
+        e.target.closest(".input-group").remove();
+      }
+    });
+  });
 </script>
-
-<script>
-    const rangeSelector = document.getElementById('rangeSelector');
-    const customInputDiv = document.getElementById('customRangeInput');
-    const customRangeInput = document.getElementById('customRange');
-
-    rangeSelector.addEventListener('change', function () {
-      if (this.value === 'custom') {
-        customInputDiv.style.display = 'block';
-        customRangeInput.required = true;
-      } else {
-        customInputDiv.style.display = 'none';
-        customRangeInput.required = false;
-      }
-    });
-  </script>
-
-  <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      const loadPerBucket = document.getElementById('loadPerBucket');
-      const noOfBuckets = document.getElementById('noOfBuckets');
-      const totalLoad = document.getElementById('totalLoad');
-
-      function calculateTotalLoad() {
-        const load = parseFloat(loadPerBucket.value) || 0;
-        const buckets = parseFloat(noOfBuckets.value) || 0;
-        totalLoad.value = load * buckets;
-      }
-
-      loadPerBucket.addEventListener('input', calculateTotalLoad);
-      noOfBuckets.addEventListener('input', calculateTotalLoad);
-    });
-  </script>
-
-
-
 
 {% endblock %}
