@@ -436,6 +436,10 @@ def def_page():
         new_indent = request.form.to_dict()
         vehicle_no = new_indent.get("vehicle_number", "").strip()
 
+        # ⬇️ Multiple drop locations को comma-separated string में बदलना
+        drop_locations = request.form.getlist("drop_locations[]")
+        drop_location_str = ", ".join([loc.strip() for loc in drop_locations if loc.strip()])
+
         if vehicle_no not in valid_vehicles:
             flash(f"Invalid Vehicle Number: {vehicle_no}", "danger")
         else:
@@ -454,7 +458,7 @@ def def_page():
                     new_indent.get("customer_name"),
                     new_indent.get("range"),
                     new_indent.get("pickup_location"),
-                    new_indent.get("location"),
+                    drop_location_str,   # ⬅️ यहां multiple values save होंगी
                     new_indent.get("vehicle_number"),
                     new_indent.get("vehicle_model"),
                     new_indent.get("vehicle_based"),
@@ -501,6 +505,7 @@ def clean_numeric(value):
         return float(value)
     except ValueError:
         return None
+
 
 @app.route("/upload_indent", methods=["POST"])
 def upload_indent():
@@ -555,7 +560,7 @@ def upload_indent():
                     row.get("customer_name"),
                     row.get("range"),
                     row.get("pickup_location"),
-                    row.get("location"),
+                    row.get("location"),   # ⬅️ Upload case में भी वही string expect होगी
                     row.get("vehicle_number"),
                     row.get("vehicle_model"),
                     row.get("vehicle_based"),
@@ -582,7 +587,6 @@ def upload_indent():
         flash(f"Error processing file: {str(e)}", "danger")
 
     return redirect(url_for("def_page"))
-
 
 
 @app.route("/export_indents")
