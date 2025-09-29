@@ -121,21 +121,36 @@
           <label class="form-label">Allocation Date</label>
           <input type="date" name="allocation_date" class="form-control shadow-sm" />
         </div>
+
         <div class="col-md-3">
-          <label class="form-label">Customer Name</label>
-          <input type="text" name="customer_name" class="form-control shadow-sm" />
+          <label class="form-label">Customer Name(s)</label>
+          <div id="customerNameContainer">
+            <div class="input-group mb-2">
+              <input type="text" name="customer_names[]" class="form-control shadow-sm" placeholder="Enter customer name" />
+              <button type="button" class="btn btn-outline-secondary addCustomerName">
+                <i class="bi bi-plus"></i>
+              </button>
+            </div>
+          </div>
         </div>
 
         {# ── 2nd Row ── #}
         <div class="col-md-3">
-          <label class="form-label">Range</label>
-          <select name="range" id="rangeSelector" required class="form-select shadow-sm">
-            <option value="">-- Select Range --</option>
-            <option value="0-100">0-100</option>
-            <option value="101-250">101-250</option>
-            <option value="251-400">251-400</option>
-            <option value="custom">Customize</option>
-          </select>
+          <label class="form-label">Range(s)</label>
+          <div id="rangeContainer">
+            <div class="input-group mb-2">
+              <select name="ranges[]" required class="form-select shadow-sm">
+                <option value="">-- Select Range --</option>
+                <option value="0-100">0-100</option>
+                <option value="101-250">101-250</option>
+                <option value="251-400">251-400</option>
+                <option value="custom">Customize</option>
+              </select>
+              <button type="button" class="btn btn-outline-secondary addRange">
+                <i class="bi bi-plus"></i>
+              </button>
+            </div>
+          </div>
         </div>
 
         <div class="col-md-3">
@@ -143,7 +158,6 @@
           <input type="text" name="pickup_location" value="Sonipat" required class="form-control shadow-sm" />
         </div>
 
-        {# ⬇️ Location को हटा दिया और उसकी जगह Drop Locations लगा दिया #}
         <div class="col-md-6">
           <label class="form-label">
             Drop Location(s)
@@ -177,9 +191,17 @@
           <label class="form-label">Vehicle Based</label>
           <input type="text" name="vehicle_based" class="form-control shadow-sm" />
         </div>
+
         <div class="col-md-3">
-          <label class="form-label">LR No.</label>
-          <input type="text" name="lr_no" class="form-control shadow-sm" />
+          <label class="form-label">LR No.(s)</label>
+          <div id="lrNoContainer">
+            <div class="input-group mb-2">
+              <input type="text" name="lr_nos[]" class="form-control shadow-sm" placeholder="Enter LR No." />
+              <button type="button" class="btn btn-outline-secondary addLrNo">
+                <i class="bi bi-plus"></i>
+              </button>
+            </div>
+          </div>
         </div>
 
         {# ── 4th Row ── #}
@@ -187,10 +209,19 @@
           <label class="form-label">Material</label>
           <input type="text" name="material" class="form-control shadow-sm" />
         </div>
+
         <div class="col-md-3">
           <label class="form-label">Load per Bucket/Barrels (Kg)</label>
-          <input type="number" name="load_per_bucket" id="loadPerBucket" class="form-control shadow-sm" />
+          <div id="loadPerBucketContainer">
+            <div class="input-group mb-2">
+              <input type="number" name="load_per_bucket[]" class="form-control shadow-sm loadPerBucketInput" placeholder="Kg per bucket" />
+              <button type="button" class="btn btn-outline-secondary addLoadPerBucket">
+                <i class="bi bi-plus"></i>
+              </button>
+            </div>
+          </div>
         </div>
+
         <div class="col-md-3">
           <label class="form-label">No. Buckets/Barrels</label>
           <input type="number" name="no_of_buckets" id="noOfBuckets" class="form-control shadow-sm" />
@@ -236,36 +267,72 @@
     tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
   });
 
-  document.addEventListener('DOMContentLoaded', function () {
-    const loadPerBucket = document.getElementById('loadPerBucket');
-    const noOfBuckets = document.getElementById('noOfBuckets');
-    const totalLoad = document.getElementById('totalLoad');
-    function calculateTotalLoad() {
-      const load = parseFloat(loadPerBucket.value) || 0;
-      const buckets = parseFloat(noOfBuckets.value) || 0;
-      totalLoad.value = load * buckets;
-    }
-    loadPerBucket.addEventListener('input', calculateTotalLoad);
-    noOfBuckets.addEventListener('input', calculateTotalLoad);
-  });
-
   document.addEventListener("DOMContentLoaded", function () {
-    const container = document.getElementById("dropLocationContainer");
-    container.addEventListener("click", function (e) {
-      if (e.target.closest(".addDropLocation")) {
-        const newInputGroup = document.createElement("div");
-        newInputGroup.className = "input-group mb-2";
-        newInputGroup.innerHTML = `
-          <input type="text" name="drop_locations[]" class="form-control shadow-sm" placeholder="Enter drop location" />
-          <button type="button" class="btn btn-outline-danger removeDropLocation">
-            <i class="bi bi-dash"></i>
-          </button>`;
-        container.appendChild(newInputGroup);
-      }
-      if (e.target.closest(".removeDropLocation")) {
-        e.target.closest(".input-group").remove();
+    const totalLoad = document.getElementById('totalLoad');
+    const noOfBuckets = document.getElementById('noOfBuckets');
+
+    function calculateTotalLoad() {
+      const loadInputs = document.querySelectorAll('.loadPerBucketInput');
+      let totalPerBucket = 0;
+      loadInputs.forEach(inp => {
+        totalPerBucket += parseFloat(inp.value) || 0;
+      });
+      const buckets = parseFloat(noOfBuckets.value) || 0;
+      totalLoad.value = totalPerBucket * buckets;
+    }
+
+    // listen to inputs
+    document.body.addEventListener('input', function(e){
+      if(e.target.classList.contains('loadPerBucketInput') || e.target.id === 'noOfBuckets'){
+        calculateTotalLoad();
       }
     });
+
+    // run once at page load
+    calculateTotalLoad();
+
+    // generic setup for add/remove buttons
+    function setupContainer(containerId, addClass, inputHtml) {
+      const container = document.getElementById(containerId);
+      container.addEventListener("click", function (e) {
+        if (e.target.closest("." + addClass)) {
+          const newInputGroup = document.createElement("div");
+          newInputGroup.className = "input-group mb-2";
+          newInputGroup.innerHTML = inputHtml;
+          container.appendChild(newInputGroup);
+        }
+        if (e.target.closest(".remove" + addClass)) {
+          e.target.closest(".input-group").remove();
+          calculateTotalLoad(); // recalc after removing
+        }
+      });
+    }
+
+    setupContainer("dropLocationContainer", "addDropLocation", `
+      <input type="text" name="drop_locations[]" class="form-control shadow-sm" placeholder="Enter drop location" />
+      <button type="button" class="btn btn-outline-danger removeaddDropLocation"><i class="bi bi-dash"></i></button>`);
+
+    setupContainer("customerNameContainer", "addCustomerName", `
+      <input type="text" name="customer_names[]" class="form-control shadow-sm" placeholder="Enter customer name" />
+      <button type="button" class="btn btn-outline-danger removeaddCustomerName"><i class="bi bi-dash"></i></button>`);
+
+    setupContainer("rangeContainer", "addRange", `
+      <select name="ranges[]" required class="form-select shadow-sm">
+        <option value="">-- Select Range --</option>
+        <option value="0-100">0-100</option>
+        <option value="101-250">101-250</option>
+        <option value="251-400">251-400</option>
+        <option value="custom">Customize</option>
+      </select>
+      <button type="button" class="btn btn-outline-danger removeaddRange"><i class="bi bi-dash"></i></button>`);
+
+    setupContainer("lrNoContainer", "addLrNo", `
+      <input type="text" name="lr_nos[]" class="form-control shadow-sm" placeholder="Enter LR No." />
+      <button type="button" class="btn btn-outline-danger removeaddLrNo"><i class="bi bi-dash"></i></button>`);
+
+    setupContainer("loadPerBucketContainer", "addLoadPerBucket", `
+      <input type="number" name="load_per_bucket[]" class="form-control shadow-sm loadPerBucketInput" placeholder="Kg per bucket" />
+      <button type="button" class="btn btn-outline-danger removeaddLoadPerBucket"><i class="bi bi-dash"></i></button>`);
   });
 </script>
 
