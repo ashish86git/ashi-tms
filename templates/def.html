@@ -1,14 +1,15 @@
 {% extends "layout.html" %}
 
+{% block title %}Create Indent{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
 
-  {# ───────────────────────── Flash Modal (Success Only) ───────────────────── #}
+  {# ───────────────────────── Flash Messages / Success Modal ───────────────────── #}
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% for category, message in messages %}
       {% if category == 'success' %}
         <button type="button" class="d-none" id="flashModalBtn" data-bs-toggle="modal" data-bs-target="#flashModal"></button>
-
         <div class="modal fade" id="flashModal" tabindex="-1" aria-hidden="true">
           <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -16,20 +17,15 @@
                 <h5 class="modal-title"><i class="bi bi-check-circle-fill me-1"></i> Success</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
               </div>
-              <div class="modal-body">
-                {{ message }}
-              </div>
+              <div class="modal-body">{{ message }}</div>
             </div>
           </div>
         </div>
-
         <script>
-          document.addEventListener('DOMContentLoaded', () => {
-            document.getElementById('flashModalBtn').click();
-          });
+          document.addEventListener('DOMContentLoaded',()=>{document.getElementById('flashModalBtn').click();});
         </script>
       {% else %}
-        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        <div class="alert alert-{{ category }} alert-dismissible fade show mt-2" role="alert">
           {{ message }}
           <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
@@ -37,7 +33,7 @@
     {% endfor %}
   {% endwith %}
 
-  {# ───────────────────────── Indent Table ──────────────────────────────── #}
+  {# ───────────────────────── Uploaded Indent Table ──────────────────────────────── #}
   {% if indent_data %}
   <div class="card shadow mb-4 border-0">
     <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
@@ -69,7 +65,7 @@
   </div>
   {% endif %}
 
-  {# ───────────────────────── Upload Card ──────────────────────────────── #}
+  {# ───────────────────────── Upload Excel/CSV Card ──────────────────────────────── #}
   <div class="card shadow mb-4 border-0">
     <div class="card-header bg-info text-white">
       <h5 class="mb-0"><i class="bi bi-upload me-2"></i> Upload Indent Excel/CSV</h5>
@@ -78,9 +74,7 @@
       <form method="post" action="{{ url_for('upload_indent') }}" enctype="multipart/form-data">
         <div class="row g-3 align-items-end">
           <div class="col-md-6">
-            <label class="form-label fw-semibold">
-              <i class="bi bi-file-earmark-spreadsheet me-1"></i>File
-            </label>
+            <label class="form-label fw-semibold"><i class="bi bi-file-earmark-spreadsheet me-1"></i> File</label>
             <input type="file" name="file" accept=".xlsx,.xls,.csv" required class="form-control shadow-sm" />
           </div>
           <div class="col-md-6">
@@ -100,7 +94,7 @@
     </a>
   </div>
 
-  {# ───────────────────────── New Indent Form ──────────────────────────── #}
+  {# ───────────────────────── Create New Indent ──────────────────────────── #}
   <div class="card shadow border-0">
     <div class="card-header bg-success text-white">
       <h5 class="mb-0"><i class="bi bi-plus-circle me-2"></i> Create New Indent</h5>
@@ -108,72 +102,97 @@
     <div class="card-body">
       <form method="post" class="row g-4">
 
-        {# ── 1st Row ── #}
+        {# ── Indent General Info ── #}
         <div class="col-md-3">
           <label class="form-label">Indent Date</label>
-          <input type="date" name="indent_date" class="form-control shadow-sm" />
+          <input type="date" name="indent_date" class="form-control shadow-sm" required />
         </div>
         <div class="col-md-3">
           <label class="form-label">Indent #</label>
-          <input type="text" name="indent" class="form-control shadow-sm" />
+          <input type="text" name="indent" class="form-control shadow-sm" required />
         </div>
         <div class="col-md-3">
           <label class="form-label">Allocation Date</label>
           <input type="date" name="allocation_date" class="form-control shadow-sm" />
         </div>
-
-        <div class="col-md-3">
-          <label class="form-label">Customer Name(s)</label>
-          <div id="customerNameContainer">
-            <div class="input-group mb-2">
-              <input type="text" name="customer_names[]" class="form-control shadow-sm" placeholder="Enter customer name" />
-              <button type="button" class="btn btn-outline-secondary addCustomerName">
-                <i class="bi bi-plus"></i>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {# ── 2nd Row ── #}
-        <div class="col-md-3">
-          <label class="form-label">Range(s)</label>
-          <div id="rangeContainer">
-            <div class="input-group mb-2">
-              <select name="ranges[]" required class="form-select shadow-sm">
-                <option value="">-- Select Range --</option>
-                <option value="0-100">0-100</option>
-                <option value="101-250">101-250</option>
-                <option value="251-400">251-400</option>
-                <option value="custom">Customize</option>
-              </select>
-              <button type="button" class="btn btn-outline-secondary addRange">
-                <i class="bi bi-plus"></i>
-              </button>
-            </div>
-          </div>
-        </div>
-
         <div class="col-md-3">
           <label class="form-label">Pickup Location</label>
           <input type="text" name="pickup_location" value="Sonipat" required class="form-control shadow-sm" />
         </div>
 
-        <div class="col-md-6">
-          <label class="form-label">
-            Drop Location(s)
-            <i class="bi bi-geo-alt-fill" data-bs-toggle="tooltip" title="One or more unloading points"></i>
-          </label>
-          <div id="dropLocationContainer">
-            <div class="input-group mb-2">
-              <input type="text" name="drop_locations[]" class="form-control shadow-sm" placeholder="Enter drop location" />
-              <button type="button" class="btn btn-outline-secondary addDropLocation">
-                <i class="bi bi-plus"></i>
-              </button>
+        {# ───────────── Customer Sections ───────────── #}
+        <div class="col-12 mt-3">
+          <label class="form-label fw-semibold">Customer Details</label>
+          <div id="customerSectionContainer">
+
+            <!-- Customer Block -->
+            <div class="customer-block border rounded p-3 mb-3 shadow-sm">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="text-primary fw-semibold mb-0">Customer #1</h6>
+                <button type="button" class="btn btn-outline-danger btn-sm removeCustomer d-none">
+                  <i class="bi bi-trash"></i> Remove
+                </button>
+              </div>
+
+              <div class="row g-3">
+                <div class="col-md-3">
+                  <label class="form-label">Customer Name</label>
+                  <input type="text" name="customers[0][name]" class="form-control shadow-sm" required />
+                </div>
+
+                <div class="col-md-3">
+                  <label class="form-label">Range</label>
+                  <select name="customers[0][range]" class="form-select shadow-sm" required>
+                    <option value="">-- Select Range --</option>
+                    <option value="0-100">0-100</option>
+                    <option value="101-250">101-250</option>
+                    <option value="251-400">251-400</option>
+                    <option value="custom">Customize</option>
+                  </select>
+                </div>
+
+                <div class="col-md-3">
+                  <label class="form-label">Drop Location</label>
+                  <input type="text" name="customers[0][drop_location]" class="form-control shadow-sm" required />
+                </div>
+
+                <div class="col-md-3">
+                  <label class="form-label">LR No.</label>
+                  <input type="text" name="customers[0][lr_no]" class="form-control shadow-sm" />
+                </div>
+
+                <div class="col-md-3">
+                  <label class="form-label">Material</label>
+                  <input type="text" name="customers[0][material]" class="form-control shadow-sm" />
+                </div>
+
+                <div class="col-md-3">
+                  <label class="form-label">Load per Bucket (Kg)</label>
+                  <input type="number" name="customers[0][load_per_bucket]" class="form-control shadow-sm loadPerBucketInput" />
+                </div>
+
+                <div class="col-md-3">
+                  <label class="form-label">No. Buckets</label>
+                  <input type="number" name="customers[0][no_of_buckets]" class="form-control shadow-sm noOfBucketsInput" />
+                </div>
+
+                <div class="col-md-3">
+                  <label class="form-label">Total Load (Kg)</label>
+                  <input type="number" name="customers[0][total_load]" class="form-control shadow-sm totalLoadInput" readonly />
+                </div>
+              </div>
             </div>
+          </div>
+
+          <!-- Add Another Customer -->
+          <div class="text-end">
+            <button type="button" class="btn btn-outline-primary mt-2" id="addCustomerBtn">
+              <i class="bi bi-plus-circle"></i> Add Another Customer
+            </button>
           </div>
         </div>
 
-        {# ── 3rd Row ── #}
+        {# ───────────── Vehicle & Other Info ───────────── #}
         <div class="col-md-3">
           <label class="form-label">Vehicle Number</label>
           <select name="vehicle_number" required class="form-select shadow-sm">
@@ -193,46 +212,6 @@
         </div>
 
         <div class="col-md-3">
-          <label class="form-label">LR No.(s)</label>
-          <div id="lrNoContainer">
-            <div class="input-group mb-2">
-              <input type="text" name="lr_nos[]" class="form-control shadow-sm" placeholder="Enter LR No." />
-              <button type="button" class="btn btn-outline-secondary addLrNo">
-                <i class="bi bi-plus"></i>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {# ── 4th Row ── #}
-        <div class="col-md-3">
-          <label class="form-label">Material</label>
-          <input type="text" name="material" class="form-control shadow-sm" />
-        </div>
-
-        <div class="col-md-3">
-          <label class="form-label">Load per Bucket/Barrels (Kg)</label>
-          <div id="loadPerBucketContainer">
-            <div class="input-group mb-2">
-              <input type="number" name="load_per_bucket[]" class="form-control shadow-sm loadPerBucketInput" placeholder="Kg per bucket" />
-              <button type="button" class="btn btn-outline-secondary addLoadPerBucket">
-                <i class="bi bi-plus"></i>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div class="col-md-3">
-          <label class="form-label">No. Buckets/Barrels</label>
-          <input type="number" name="no_of_buckets" id="noOfBuckets" class="form-control shadow-sm" />
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">Total Load (Kg)</label>
-          <input type="number" name="t_load" id="totalLoad" class="form-control shadow-sm" readonly />
-        </div>
-
-        {# ── 5th Row ── #}
-        <div class="col-md-3">
           <label class="form-label">POD Received</label>
           <select name="pod_received" class="form-select shadow-sm">
             <option value="Yes">Yes</option>
@@ -248,7 +227,7 @@
           <input type="month" name="freight_tiger_month" class="form-control shadow-sm" />
         </div>
 
-        {# ── Submit ── #}
+        {# ── Submit Button ── #}
         <div class="col-12 text-end">
           <button type="submit" class="btn btn-success px-5 mt-3">
             <i class="bi bi-plus-circle me-1"></i> Create Indent
@@ -257,83 +236,58 @@
       </form>
     </div>
   </div>
-
 </div>
 
-{# ── Scripts ── #}
+{# ───────────── JavaScript Section ───────────── #}
 <script>
-  document.addEventListener('DOMContentLoaded', () => {
-    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-    tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
-  });
+document.addEventListener("DOMContentLoaded", function () {
+  const container = document.getElementById("customerSectionContainer");
+  const addBtn = document.getElementById("addCustomerBtn");
 
-  document.addEventListener("DOMContentLoaded", function () {
-    const totalLoad = document.getElementById('totalLoad');
-    const noOfBuckets = document.getElementById('noOfBuckets');
+  // Add new customer block
+  addBtn.addEventListener("click", () => {
+    const count = container.querySelectorAll(".customer-block").length;
+    const newBlock = container.firstElementChild.cloneNode(true);
 
-    function calculateTotalLoad() {
-      const loadInputs = document.querySelectorAll('.loadPerBucketInput');
-      let totalPerBucket = 0;
-      loadInputs.forEach(inp => {
-        totalPerBucket += parseFloat(inp.value) || 0;
-      });
-      const buckets = parseFloat(noOfBuckets.value) || 0;
-      totalLoad.value = totalPerBucket * buckets;
-    }
-
-    // listen to inputs
-    document.body.addEventListener('input', function(e){
-      if(e.target.classList.contains('loadPerBucketInput') || e.target.id === 'noOfBuckets'){
-        calculateTotalLoad();
-      }
+    newBlock.querySelector("h6").textContent = `Customer #${count + 1}`;
+    newBlock.querySelectorAll("input, select").forEach(input => {
+      input.value = "";
+      const name = input.getAttribute("name");
+      input.setAttribute("name", name.replace(/\[\d+\]/, `[${count}]`));
     });
 
-    // run once at page load
-    calculateTotalLoad();
-
-    // generic setup for add/remove buttons
-    function setupContainer(containerId, addClass, inputHtml) {
-      const container = document.getElementById(containerId);
-      container.addEventListener("click", function (e) {
-        if (e.target.closest("." + addClass)) {
-          const newInputGroup = document.createElement("div");
-          newInputGroup.className = "input-group mb-2";
-          newInputGroup.innerHTML = inputHtml;
-          container.appendChild(newInputGroup);
-        }
-        if (e.target.closest(".remove" + addClass)) {
-          e.target.closest(".input-group").remove();
-          calculateTotalLoad(); // recalc after removing
-        }
-      });
-    }
-
-    setupContainer("dropLocationContainer", "addDropLocation", `
-      <input type="text" name="drop_locations[]" class="form-control shadow-sm" placeholder="Enter drop location" />
-      <button type="button" class="btn btn-outline-danger removeaddDropLocation"><i class="bi bi-dash"></i></button>`);
-
-    setupContainer("customerNameContainer", "addCustomerName", `
-      <input type="text" name="customer_names[]" class="form-control shadow-sm" placeholder="Enter customer name" />
-      <button type="button" class="btn btn-outline-danger removeaddCustomerName"><i class="bi bi-dash"></i></button>`);
-
-    setupContainer("rangeContainer", "addRange", `
-      <select name="ranges[]" required class="form-select shadow-sm">
-        <option value="">-- Select Range --</option>
-        <option value="0-100">0-100</option>
-        <option value="101-250">101-250</option>
-        <option value="251-400">251-400</option>
-        <option value="custom">Customize</option>
-      </select>
-      <button type="button" class="btn btn-outline-danger removeaddRange"><i class="bi bi-dash"></i></button>`);
-
-    setupContainer("lrNoContainer", "addLrNo", `
-      <input type="text" name="lr_nos[]" class="form-control shadow-sm" placeholder="Enter LR No." />
-      <button type="button" class="btn btn-outline-danger removeaddLrNo"><i class="bi bi-dash"></i></button>`);
-
-    setupContainer("loadPerBucketContainer", "addLoadPerBucket", `
-      <input type="number" name="load_per_bucket[]" class="form-control shadow-sm loadPerBucketInput" placeholder="Kg per bucket" />
-      <button type="button" class="btn btn-outline-danger removeaddLoadPerBucket"><i class="bi bi-dash"></i></button>`);
+    newBlock.querySelector(".removeCustomer").classList.remove("d-none");
+    container.appendChild(newBlock);
   });
-</script>
 
+  // Remove customer block
+  container.addEventListener("click", e => {
+    if (e.target.closest(".removeCustomer")) {
+      e.target.closest(".customer-block").remove();
+      updateLabels();
+    }
+  });
+
+  function updateLabels() {
+    const blocks = container.querySelectorAll(".customer-block");
+    blocks.forEach((block, i) => {
+      block.querySelector("h6").textContent = `Customer #${i + 1}`;
+      block.querySelectorAll("input, select").forEach(input => {
+        const name = input.getAttribute("name");
+        input.setAttribute("name", name.replace(/\[\d+\]/, `[${i}]`));
+      });
+    });
+  }
+
+  // Auto-calculate total load for each customer
+  container.addEventListener("input", e => {
+    if (e.target.classList.contains("loadPerBucketInput") || e.target.classList.contains("noOfBucketsInput")) {
+      const block = e.target.closest(".customer-block");
+      const load = parseFloat(block.querySelector(".loadPerBucketInput").value) || 0;
+      const buckets = parseFloat(block.querySelector(".noOfBucketsInput").value) || 0;
+      block.querySelector(".totalLoadInput").value = load * buckets;
+    }
+  });
+});
+</script>
 {% endblock %}
