@@ -428,60 +428,78 @@ def clean_numeric(value):
 @app.route("/def", methods=["GET", "POST"])
 def def_page():
     """Main route for displaying and adding indents."""
-    valid_vehicles = get_all_vehicle_numbers()   # ✅ अब सारे vehicles आएंगे
+    valid_vehicles = get_all_vehicle_numbers()
     conn = get_db_connection()
     cursor = conn.cursor()
 
     if request.method == "POST":
-        new_indent = request.form.to_dict()
-        vehicle_no = new_indent.get("vehicle_number", "").strip()
-
-        # ⬇️ Multiple drop locations को comma-separated string में बदलना
-        drop_locations = request.form.getlist("drop_locations[]")
-        drop_location_str = ", ".join([loc.strip() for loc in drop_locations if loc.strip()])
+        form_data = request.form.to_dict(flat=False)
+        vehicle_no = request.form.get("vehicle_number", "").strip()
 
         if vehicle_no not in valid_vehicles:
             flash(f"Invalid Vehicle Number: {vehicle_no}", "danger")
-        else:
-            try:
+            cursor.close()
+            conn.close()
+            return redirect(url_for("def_page"))
+
+        try:
+            # ✅ Extract customer sections (customers[0], customers[1], etc.)
+            customers = []
+            for key, values in form_data.items():
+                if key.startswith("customers["):
+                    # Key looks like: customers[0][name]
+                    # Extract index and subkey
+                    parts = key.split("[")
+                    index = int(parts[1].replace("]", ""))
+                    field = parts[2].replace("]", "")
+                    while len(customers) <= index:
+                        customers.append({})
+                    customers[index][field] = values[0] if values else None
+
+            # ✅ Loop through each customer entry
+            for cust in customers:
+                drop_location = cust.get("drop_location", "")
                 cursor.execute("""
                     INSERT INTO indents (
                         indent_date, indent, allocation_date, customer_name, "range",
                         pickup_location, location, vehicle_number, vehicle_model,
                         vehicle_based, lr_no, material, load_per_bucket, no_of_buckets,
                         t_load, pod_received, freight_tiger_number, freight_tiger_month
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
-                    new_indent.get("indent_date"),
-                    new_indent.get("indent"),
-                    new_indent.get("allocation_date"),
-                    new_indent.get("customer_name"),
-                    new_indent.get("range"),
-                    new_indent.get("pickup_location"),
-                    drop_location_str,   # ⬅️ यहां multiple values save होंगी
-                    new_indent.get("vehicle_number"),
-                    new_indent.get("vehicle_model"),
-                    new_indent.get("vehicle_based"),
-                    new_indent.get("lr_no"),
-                    new_indent.get("material"),
-                    clean_numeric(new_indent.get("load_per_bucket")),
-                    clean_numeric(new_indent.get("no_of_buckets")),
-                    clean_numeric(new_indent.get("t_load")),
-                    new_indent.get("pod_received"),
-                    new_indent.get("freight_tiger_number"),
-                    new_indent.get("freight_tiger_month")
+                    request.form.get("indent_date"),
+                    request.form.get("indent"),
+                    request.form.get("allocation_date"),
+                    cust.get("name"),
+                    cust.get("range"),
+                    request.form.get("pickup_location"),
+                    drop_location,
+                    vehicle_no,
+                    request.form.get("vehicle_model"),
+                    request.form.get("vehicle_based"),
+                    cust.get("lr_no"),
+                    cust.get("material"),
+                    clean_numeric(cust.get("load_per_bucket")),
+                    clean_numeric(cust.get("no_of_buckets")),
+                    clean_numeric(cust.get("total_load")),
+                    request.form.get("pod_received"),
+                    request.form.get("freight_tiger_number"),
+                    request.form.get("freight_tiger_month"),
                 ))
-                conn.commit()
-                flash("New indent created successfully!", "success")
-            except Exception as e:
-                conn.rollback()
-                flash(f"Error creating indent: {str(e)}", "danger")
+
+            conn.commit()
+            flash(f"Indent created successfully with {len(customers)} customer(s)!", "success")
+
+        except Exception as e:
+            conn.rollback()
+            flash(f"Error creating indent: {str(e)}", "danger")
 
         cursor.close()
         conn.close()
         return redirect(url_for("def_page"))
 
-    # Fetch all indents
+    # ---------------- Fetch all indents ----------------
     cursor.execute("SELECT * FROM indents")
     rows = cursor.fetchall()
     col_names = [desc[0] for desc in cursor.description]
@@ -490,22 +508,10 @@ def def_page():
     cursor.close()
     conn.close()
 
-    valid_vehicles = get_all_vehicle_numbers()
     return render_template("def.html", indent_data=indent_data, fleet_data=valid_vehicles)
 
 
-def clean_numeric(value):
-    if value is None:
-        return None
-    if pd.isna(value):
-        return None
-    if isinstance(value, str) and value.strip() == "":
-        return None
-    try:
-        return float(value)
-    except ValueError:
-        return None
-
+# -------------------------- Upload Indents --------------------------
 
 @app.route("/upload_indent", methods=["POST"])
 def upload_indent():
@@ -526,7 +532,6 @@ def upload_indent():
             flash("Unsupported file format.", "danger")
             return redirect(url_for("def_page"))
 
-        # Replace NaN with None
         df = df.where(pd.notnull(df), None)
 
         if df.empty:
@@ -552,7 +557,7 @@ def upload_indent():
                     t_load, pod_received, freight_tiger_number, freight_tiger_month
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
-            for index, row in valid_df.iterrows():
+            for _, row in valid_df.iterrows():
                 cursor.execute(sql, (
                     row.get("indent_date"),
                     row.get("indent"),
@@ -560,7 +565,7 @@ def upload_indent():
                     row.get("customer_name"),
                     row.get("range"),
                     row.get("pickup_location"),
-                    row.get("location"),   # ⬅️ Upload case में भी वही string expect होगी
+                    row.get("location"),
                     row.get("vehicle_number"),
                     row.get("vehicle_model"),
                     row.get("vehicle_based"),
@@ -571,7 +576,7 @@ def upload_indent():
                     clean_numeric(row.get("t_load")),
                     row.get("pod_received"),
                     row.get("freight_tiger_number"),
-                    row.get("freight_tiger_month")
+                    row.get("freight_tiger_month"),
                 ))
 
             conn.commit()
@@ -589,6 +594,8 @@ def upload_indent():
     return redirect(url_for("def_page"))
 
 
+# -------------------------- Export Indents --------------------------
+
 @app.route("/export_indents")
 def export_indents():
     """Exports all indents to a downloadable CSV file."""
@@ -596,16 +603,13 @@ def export_indents():
     df = pd.read_sql_query("SELECT * FROM indents", conn)
     conn.close()
 
-    # Create an in-memory file for CSV data
     output = io.StringIO()
     df.to_csv(output, index=False)
     output.seek(0)
 
-    # Create the response
     response = make_response(output.getvalue())
     response.headers["Content-Disposition"] = "attachment; filename=indents.csv"
     response.headers["Content-type"] = "text/csv"
-
     return response
 
 
@@ -670,104 +674,133 @@ def safe_decimal(value, default=0):
 
 @app.route('/financial')
 def financial():
-    """Generates and displays the financial dashboard."""
+    """Generates and displays the financial dashboard with filters, CSV export, and top 5 revenue vehicles."""
+    vehicle_filter = request.args.get('vehicle_id', '').strip()
+    driver_filter = request.args.get('driver_name', '').strip()
+    export_csv = request.args.get('export', '').strip()
+
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     fuel_price_per_liter = Decimal('96.0')
     fuel_efficiency_kmpl = Decimal('12.0')
-    driver_salary_per_trip = Decimal('800.0')
     toll_tax_per_trip = Decimal('100.0')
     misc_cost_per_trip = Decimal('50.0')
+    cost_per_km_fuel = fuel_price_per_liter / fuel_efficiency_kmpl
 
+    # Fetch all indents with customers, join with fleet and driver_master
     query = """
     SELECT
         f.vehicle_id,
-        f.driver_id,
-        f.license_plate,
+        f.vehicle_name,
+        f.make,
+        f.model,
+        f.vin,
+        f.avg AS vehicle_avg,
+        f.status,
+        f.type,
+        f."group",
+        dm.driver_name,
         i.indent_date,
         i.pickup_location,
         i.location AS drop_location,
-        i.lr_no,
-        i.customer_name,
-        i."range",
-        i.material,
         i.no_of_buckets,
         i.load_per_bucket,
-        mm.transport_rate,
-        mm.loading_rate,
-        mm.unloading_rate,
-        dm.driver_name,
-        dm.license_number,
-        dm.contact_number,
-        dm.shift_info,
-        df.salary AS driver_salary
+        i.material,
+        i.lr_no,
+        i.customer_name
     FROM fleet f
-    LEFT JOIN indents i 
-        ON f.vehicle_id::text = i.vehicle_number
-    LEFT JOIN master_model mm 
-        ON i."range" = mm."range" AND f.model = mm.product
-    LEFT JOIN driver_master dm 
-        ON f.driver_id = dm.driver_id
-    LEFT JOIN driver_financials df 
-        ON dm.driver_id = df.driver_id
-    WHERE i.indent_date IS NOT NULL;
+    LEFT JOIN driver_master dm ON f.driver_id = dm.driver_id
+    LEFT JOIN indents i ON f.vehicle_id::text = i.vehicle_number
+    WHERE i.indent_date IS NOT NULL
     """
+
+    # Apply filters dynamically
+    filters = []
+    if vehicle_filter:
+        filters.append(f"f.vehicle_id::text = '{vehicle_filter}'")
+    if driver_filter:
+        filters.append(f"dm.driver_name ILIKE '%{driver_filter}%'")
+    if filters:
+        query += " AND " + " AND ".join(filters)
 
     cur.execute(query)
     rows = cur.fetchall()
-
-    summary = defaultdict(lambda: defaultdict(Decimal))
-    routes = []
-    cost_per_km_fuel = fuel_price_per_liter / fuel_efficiency_kmpl
-
-    for data in rows:
-        no_of_buckets = safe_decimal(data.get('no_of_buckets'))
-        load_per_bucket = safe_decimal(data.get('load_per_bucket'))
-        total_km = safe_decimal(calculate_distance(data['pickup_location'], data['drop_location']))
-        transport_rate = safe_decimal(data.get('transport_rate'))
-        loading_rate = safe_decimal(data.get('loading_rate'))
-        unloading_rate = safe_decimal(data.get('unloading_rate'))
-        driver_salary_val = safe_decimal(data.get('driver_salary'), driver_salary_per_trip)
-
-        total_load = no_of_buckets * load_per_bucket
-        revenue = (total_load * transport_rate) + loading_rate + unloading_rate
-        fuel_cost = total_km * cost_per_km_fuel
-        total_cost = fuel_cost + driver_salary_val + toll_tax_per_trip + misc_cost_per_trip
-        pnl = revenue - total_cost
-
-        trip = {
-            'vehicle_id': data['vehicle_id'],
-            'driver_id': data['driver_id'],
-            'driver_name': data.get('driver_name'),
-            'license_number': data.get('license_number'),
-            'contact_number': data.get('contact_number'),
-            'shift_info': data.get('shift_info'),
-            'indent_date': data['indent_date'],
-            'pickup_location': data['pickup_location'],
-            'drop_location': data['drop_location'],
-            'total_km': total_km,
-            'transport_rate': transport_rate,
-            'total_cost_loading': loading_rate,
-            'total_cost_unloading': unloading_rate,
-            'any_other_cost': toll_tax_per_trip + misc_cost_per_trip,
-            'total_cost_final': total_cost,
-            'cost': total_cost,
-            'revenue': revenue,
-            'pnl': pnl
-        }
-        routes.append(trip)
-
-        summary[data['vehicle_id']]['fuel_cost'] += fuel_cost
-        summary[data['vehicle_id']]['revenue'] += revenue
-        summary[data['vehicle_id']]['cost'] += total_cost
-        summary[data['vehicle_id']]['pnl'] += pnl
-        summary[data['driver_id']]['orders'] += 1 if data['lr_no'] else 0
-
     cur.close()
     conn.close()
 
-    return render_template("financial_dashboard.html", routes=routes, summary=summary)
+    routes = []
+    summary = defaultdict(lambda: defaultdict(Decimal))
+
+    for data in rows:
+        # Safely convert values
+        no_of_buckets = Decimal(data['no_of_buckets'] or 0)
+        load_per_bucket = Decimal(data['load_per_bucket'] or 0)
+        vehicle_avg = Decimal(data['vehicle_avg'] or 0)
+        total_km = Decimal(calculate_distance(data['pickup_location'], data['drop_location']))
+
+        total_load = no_of_buckets * load_per_bucket
+        revenue = total_load * vehicle_avg
+        fuel_cost = total_km * cost_per_km_fuel
+        total_cost = fuel_cost + toll_tax_per_trip + misc_cost_per_trip
+        pnl = revenue - total_cost
+
+        # Each customer creates a separate row
+        trip = {
+            'Vehicle ID': data['vehicle_id'],
+            'Vehicle Name': data['vehicle_name'],
+            'Driver Name': data.get('driver_name', ''),
+            'Status': data['status'],
+            'Type': data['type'],
+            'Group': data['group'],
+            'Customer': data.get('customer_name'),
+            'Material': data.get('material'),
+            'LR No.': data.get('lr_no'),
+            'Pickup': data['pickup_location'],
+            'Drop': data['drop_location'],
+            'No. Buckets': no_of_buckets,
+            'Load/Bucket': load_per_bucket,
+            'Total Load': total_load,
+            'Fuel Cost': fuel_cost,
+            'Total Cost': total_cost,
+            'Revenue': revenue,
+            'PnL': pnl
+        }
+        routes.append(trip)
+
+        # Aggregate per vehicle for top 5
+        summary[data['vehicle_id']]['Vehicle ID'] = data['vehicle_id']
+        summary[data['vehicle_id']]['Vehicle Name'] = data['vehicle_name']
+        summary[data['vehicle_id']]['Revenue'] += revenue
+        summary[data['vehicle_id']]['Fuel_Cost'] += fuel_cost
+        summary[data['vehicle_id']]['Total_Cost'] += total_cost
+        summary[data['vehicle_id']]['PnL'] += pnl
+        summary[data['vehicle_id']]['Trips'] += 1
+
+    # Top 5 Vehicles by Revenue
+    top_vehicles = sorted(summary.values(), key=lambda x: x['Revenue'], reverse=True)[:5]
+
+    # CSV Export
+    if export_csv.lower() == 'csv':
+        import pandas as pd, io
+        df = pd.DataFrame(routes)
+        output = io.StringIO()
+        df.to_csv(output, index=False)
+        output.seek(0)
+        response = make_response(output.getvalue())
+        response.headers["Content-Disposition"] = "attachment; filename=financial_trips.csv"
+        response.headers["Content-type"] = "text/csv"
+        return response
+
+    return render_template(
+        "financial_dashboard.html",
+        routes=routes,
+        summary=summary,
+        top_vehicles=top_vehicles,
+        vehicle_filter=vehicle_filter,
+        driver_filter=driver_filter
+    )
+
 
 
 # -------------------------- Unused/Placeholder Routes --------------------------
