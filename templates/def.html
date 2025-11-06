@@ -9,6 +9,7 @@
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% for category, message in messages %}
       {% if category == 'success' %}
+        {# Success Modal remains for visual impact #}
         <button type="button" class="d-none" id="flashModalBtn" data-bs-toggle="modal" data-bs-target="#flashModal"></button>
         <div class="modal fade" id="flashModal" tabindex="-1" aria-hidden="true">
           <div class="modal-dialog modal-dialog-centered">
@@ -22,6 +23,7 @@
           </div>
         </div>
         <script>
+          // Ensure modal shows on page load if success flash message is present
           document.addEventListener('DOMContentLoaded',()=>{document.getElementById('flashModalBtn').click();});
         </script>
       {% else %}
@@ -49,6 +51,7 @@
             {% for key in indent_data[0].keys() %}
               <th>{{ key.replace('_',' ').title() }}</th>
             {% endfor %}
+            <th>Status</th>
           </tr>
         </thead>
         <tbody>
@@ -57,6 +60,13 @@
             {% for value in row.values() %}
               <td>{{ value }}</td>
             {% endfor %}
+            <td>
+              <button class="btn btn-outline-secondary btn-sm track-status-btn"
+                      data-indent="{{ row['indent'] }}"
+                      data-vehicle="{{ row['vehicle_number'] }}">
+                <i class="bi bi-truck"></i> Track
+              </button>
+            </td>
           </tr>
           {% endfor %}
         </tbody>
@@ -124,8 +134,6 @@
         <div class="col-12 mt-3">
           <label class="form-label fw-semibold">Customer Details</label>
           <div id="customerSectionContainer">
-
-            <!-- Customer Block -->
             <div class="customer-block border rounded p-3 mb-3 shadow-sm">
               <div class="d-flex justify-content-between align-items-center mb-2">
                 <h6 class="text-primary fw-semibold mb-0">Customer #1</h6>
@@ -133,13 +141,11 @@
                   <i class="bi bi-trash"></i> Remove
                 </button>
               </div>
-
               <div class="row g-3">
                 <div class="col-md-3">
                   <label class="form-label">Customer Name</label>
                   <input type="text" name="customers[0][name]" class="form-control shadow-sm" required />
                 </div>
-
                 <div class="col-md-3">
                   <label class="form-label">Range</label>
                   <select name="customers[0][range]" class="form-select shadow-sm" required>
@@ -150,32 +156,26 @@
                     <option value="custom">Customize</option>
                   </select>
                 </div>
-
                 <div class="col-md-3">
                   <label class="form-label">Drop Location</label>
                   <input type="text" name="customers[0][drop_location]" class="form-control shadow-sm" required />
                 </div>
-
                 <div class="col-md-3">
                   <label class="form-label">LR No.</label>
                   <input type="text" name="customers[0][lr_no]" class="form-control shadow-sm" />
                 </div>
-
                 <div class="col-md-3">
                   <label class="form-label">Material</label>
                   <input type="text" name="customers[0][material]" class="form-control shadow-sm" />
                 </div>
-
                 <div class="col-md-3">
                   <label class="form-label">Load per Bucket (Kg)</label>
                   <input type="number" name="customers[0][load_per_bucket]" class="form-control shadow-sm loadPerBucketInput" />
                 </div>
-
                 <div class="col-md-3">
                   <label class="form-label">No. Buckets</label>
                   <input type="number" name="customers[0][no_of_buckets]" class="form-control shadow-sm noOfBucketsInput" />
                 </div>
-
                 <div class="col-md-3">
                   <label class="form-label">Total Load (Kg)</label>
                   <input type="number" name="customers[0][total_load]" class="form-control shadow-sm totalLoadInput" readonly />
@@ -183,8 +183,6 @@
               </div>
             </div>
           </div>
-
-          <!-- Add Another Customer -->
           <div class="text-end">
             <button type="button" class="btn btn-outline-primary mt-2" id="addCustomerBtn">
               <i class="bi bi-plus-circle"></i> Add Another Customer
@@ -210,7 +208,6 @@
           <label class="form-label">Vehicle Based</label>
           <input type="text" name="vehicle_based" class="form-control shadow-sm" />
         </div>
-
         <div class="col-md-3">
           <label class="form-label">POD Received</label>
           <select name="pod_received" class="form-select shadow-sm">
@@ -226,8 +223,6 @@
           <label class="form-label">Freight Tiger Month</label>
           <input type="month" name="freight_tiger_month" class="form-control shadow-sm" />
         </div>
-
-        {# ── Submit Button ── #}
         <div class="col-12 text-end">
           <button type="submit" class="btn btn-success px-5 mt-3">
             <i class="bi bi-plus-circle me-1"></i> Create Indent
@@ -238,56 +233,219 @@
   </div>
 </div>
 
-{# ───────────── JavaScript Section ───────────── #}
+{# ───────────────────── Vehicle Status Tracker Modal ───────────────────── #}
+<div class="modal fade" id="statusModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-secondary text-white">
+        <h5 class="modal-title"><i class="bi bi-truck me-2"></i> Vehicle Status Tracker: <span id="modalVehicleID" class="fw-bold"></span></h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <h6 class="mb-3">Indent: <span id="modalIndentID" class="text-primary fw-bold"></span></h6>
+        <div class="progress my-3" style="height: 28px;">
+          <div id="statusProgress" class="progress-bar progress-bar-striped progress-bar-animated bg-info" style="width: 0%;">
+            Waiting to Start...
+          </div>
+        </div>
+        <div class="row text-center mt-4">
+          <div class="col">
+            <i class="bi bi-box2-fill fs-3 text-warning"></i>
+            <p class="fw-semibold mb-0">Loading</p>
+            <small id="loadTime">–</small>
+          </div>
+          <div class="col">
+            <i class="bi bi-p-square-fill fs-3 text-primary"></i>
+            <p class="fw-semibold mb-0">Parking</p>
+            <small id="parkTime">–</small>
+          </div>
+          <div class="col">
+            <i class="bi bi-door-open-fill fs-3 text-success"></i>
+            <p class="fw-semibold mb-0">Ready to Exit</p>
+            <small id="exitTime">–</small>
+          </div>
+        </div>
+        <div class="text-center mt-4">
+          <button class="btn btn-outline-warning me-2" id="btnLoading" data-status="loading"><i class="bi bi-box2"></i> Start Loading</button>
+          <button class="btn btn-outline-primary me-2" id="btnParking" data-status="parking" disabled><i class="bi bi-p-square"></i> Move to Parking</button>
+          <button class="btn btn-outline-success" id="btnExit" data-status="exit" disabled><i class="bi bi-door-open"></i> Ready to Exit</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ───────────────────────────── Optimized JavaScript Section ───────────────────────────── #}
 <script>
 document.addEventListener("DOMContentLoaded", function () {
+  // --- DOM Elements for Status Tracker ---
+  const statusModal = new bootstrap.Modal(document.getElementById("statusModal"));
+  const progressBar = document.getElementById("statusProgress");
+  const modalVehicleID = document.getElementById("modalVehicleID");
+  const modalIndentID = document.getElementById("modalIndentID");
+  const loadTime = document.getElementById("loadTime");
+  const parkTime = document.getElementById("parkTime");
+  const exitTime = document.getElementById("exitTime");
+  const btnLoading = document.getElementById("btnLoading");
+  const btnParking = document.getElementById("btnParking");
+  const btnExit = document.getElementById("btnExit");
+  const trackBtns = document.querySelectorAll(".track-status-btn");
+
+  // --- Utility: Update Progress Bar and Buttons ---
+  function updateModalUI(status, loadT, parkT, exitT) {
+    let width = '0%', barClass = 'bg-info', barText = 'Waiting to Start...';
+    let loadingDisabled = false, parkingDisabled = true, exitDisabled = true;
+
+    if (status === "loading") {
+      width = '33%';
+      barClass = 'bg-warning';
+      barText = 'Loading in Progress...';
+      loadingDisabled = true;
+      parkingDisabled = false;
+    } else if (status === "parking") {
+      width = '66%';
+      barClass = 'bg-primary';
+      barText = 'Vehicle Parked...';
+      loadingDisabled = true;
+      parkingDisabled = true;
+      exitDisabled = false;
+    } else if (status === "exit") {
+      width = '100%';
+      barClass = 'bg-success';
+      barText = 'Exit Completed!';
+      loadingDisabled = true;
+      parkingDisabled = true;
+      exitDisabled = true;
+    }
+
+    loadTime.textContent = loadT || "–";
+    parkTime.textContent = parkT || "–";
+    exitTime.textContent = exitT || "–";
+    progressBar.style.width = width;
+    progressBar.className = `progress-bar progress-bar-striped progress-bar-animated ${barClass}`;
+    progressBar.textContent = barText;
+    btnLoading.disabled = loadingDisabled;
+    btnParking.disabled = parkingDisabled;
+    btnExit.disabled = exitDisabled;
+  }
+
+  // --- API Call: Fetch Status ---
+  async function fetchStatus(indent, vehicle) {
+    const res = await fetch(`/get_status?indent=${indent}&vehicle=${vehicle}`);
+    return res.json();
+  }
+
+  // --- API Call: Update Status ---
+  async function updateStatus(status) {
+    const indent = modalIndentID.textContent;
+    const vehicle = modalVehicleID.textContent;
+    const res = await fetch("/update_status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ indent, vehicle, status }),
+    });
+    const data = await res.json();
+    return data;
+  }
+
+  // --- Event: Track Button Click ---
+  trackBtns.forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const indent = btn.getAttribute("data-indent");
+      const vehicle = btn.getAttribute("data-vehicle");
+
+      modalIndentID.textContent = indent;
+      modalVehicleID.textContent = vehicle;
+
+      // Reset and fetch status
+      updateModalUI(null, null, null, null); // Initial reset
+      const data = await fetchStatus(indent, vehicle);
+
+      // Update UI based on fetched status
+      updateModalUI(data.status, data.loading_time, data.parking_time, data.exit_time);
+
+      statusModal.show();
+    });
+  });
+
+  // --- Event: Status Update Button Clicks (Delegated Handlers) ---
+  btnLoading.addEventListener("click", async () => {
+    const data = await updateStatus("loading");
+    updateModalUI("loading", data.timestamp, null, null);
+  });
+
+  btnParking.addEventListener("click", async () => {
+    const data = await updateStatus("parking");
+    // Preserve old loading time, update parking time
+    updateModalUI("parking", loadTime.textContent, data.timestamp, null);
+  });
+
+  btnExit.addEventListener("click", async () => {
+    const data = await updateStatus("exit");
+    // Preserve old times, update exit time
+    updateModalUI("exit", loadTime.textContent, parkTime.textContent, data.timestamp);
+  });
+
+
+  // ------------------- Customer Form Logic -------------------
+
   const container = document.getElementById("customerSectionContainer");
   const addBtn = document.getElementById("addCustomerBtn");
-
-  // Add new customer block
-  addBtn.addEventListener("click", () => {
-    const count = container.querySelectorAll(".customer-block").length;
-    const newBlock = container.firstElementChild.cloneNode(true);
-
-    newBlock.querySelector("h6").textContent = `Customer #${count + 1}`;
-    newBlock.querySelectorAll("input, select").forEach(input => {
-      input.value = "";
-      const name = input.getAttribute("name");
-      input.setAttribute("name", name.replace(/\[\d+\]/, `[${count}]`));
-    });
-
-    newBlock.querySelector(".removeCustomer").classList.remove("d-none");
-    container.appendChild(newBlock);
-  });
-
-  // Remove customer block
-  container.addEventListener("click", e => {
-    if (e.target.closest(".removeCustomer")) {
-      e.target.closest(".customer-block").remove();
-      updateLabels();
-    }
-  });
 
   function updateLabels() {
     const blocks = container.querySelectorAll(".customer-block");
     blocks.forEach((block, i) => {
+      // Update title
       block.querySelector("h6").textContent = `Customer #${i + 1}`;
+      // Update form names
       block.querySelectorAll("input, select").forEach(input => {
         const name = input.getAttribute("name");
+        // Regex to update the array index in the name attribute, e.g., 'customers[0][name]' -> 'customers[i][name]'
         input.setAttribute("name", name.replace(/\[\d+\]/, `[${i}]`));
       });
+      // Show remove button for all customers except the first one
+      if (i > 0) {
+        block.querySelector(".removeCustomer").classList.remove("d-none");
+      } else {
+        block.querySelector(".removeCustomer").classList.add("d-none");
+      }
     });
   }
 
-  // Auto-calculate total load for each customer
+  // Initial check for the first customer's remove button (ensure it's hidden)
+  updateLabels();
+
+  addBtn.addEventListener("click", () => {
+    const newBlock = container.firstElementChild.cloneNode(true);
+    // Clear values in cloned block
+    newBlock.querySelectorAll("input, select").forEach(input => { input.value = ""; });
+    container.appendChild(newBlock);
+    updateLabels(); // Update all labels/names/remove buttons
+  });
+
+  container.addEventListener("click", e => {
+    if (e.target.closest(".removeCustomer")) {
+      e.target.closest(".customer-block").remove();
+      updateLabels(); // Recalculate and update indices/labels after removal
+    }
+  });
+
+  // Event Delegation for Total Load Calculation
   container.addEventListener("input", e => {
     if (e.target.classList.contains("loadPerBucketInput") || e.target.classList.contains("noOfBucketsInput")) {
       const block = e.target.closest(".customer-block");
-      const load = parseFloat(block.querySelector(".loadPerBucketInput").value) || 0;
-      const buckets = parseFloat(block.querySelector(".noOfBucketsInput").value) || 0;
-      block.querySelector(".totalLoadInput").value = load * buckets;
+      const loadInput = block.querySelector(".loadPerBucketInput");
+      const bucketsInput = block.querySelector(".noOfBucketsInput");
+      const totalLoadInput = block.querySelector(".totalLoadInput");
+
+      const load = parseFloat(loadInput.value) || 0;
+      const buckets = parseFloat(bucketsInput.value) || 0;
+
+      // Calculate and set total load
+      totalLoadInput.value = (load * buckets).toFixed(2); // Use toFixed(2) for better number handling
     }
   });
 });
 </script>
+
 {% endblock %}
