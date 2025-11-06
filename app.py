@@ -425,6 +425,82 @@ def clean_numeric(value):
     return value
 
 
+# app.py (या जहाँ भी आपका Flask रूट है)
+
+# 🔹 Update Vehicle Status
+@app.route('/update_status', methods=['POST'])
+def update_status():
+    data = request.get_json()
+    indent = data.get('indent')
+    vehicle = data.get('vehicle')
+    status = data.get('status')
+
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    if status == 'loading':
+        cur.execute("""
+            UPDATE indents
+            SET loading_time = %s, status = %s
+            WHERE indent = %s AND vehicle_number = %s
+        """, (timestamp, 'loading', indent, vehicle))
+
+    elif status == 'parking':
+        cur.execute("""
+            UPDATE indents
+            SET parking_time = %s, status = %s
+            WHERE indent = %s AND vehicle_number = %s
+        """, (timestamp, 'parking', indent, vehicle))
+
+    elif status == 'exit':
+        cur.execute("""
+            UPDATE indents
+            SET exit_time = %s, status = %s
+            WHERE indent = %s AND vehicle_number = %s
+        """, (timestamp, 'exit', indent, vehicle))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return jsonify({'success': True, 'timestamp': timestamp})
+
+
+@app.route('/get_status')
+def get_status():
+    indent = request.args.get('indent')
+    vehicle = request.args.get('vehicle')
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT loading_time, parking_time, exit_time, status
+        FROM indents
+        WHERE indent = %s AND vehicle_number = %s
+        LIMIT 1
+    """, (indent, vehicle))
+
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+
+    if row:
+        return jsonify({
+            'loading_time': row[0].strftime('%Y-%m-%d %H:%M:%S') if row[0] else None,
+            'parking_time': row[1].strftime('%Y-%m-%d %H:%M:%S') if row[1] else None,
+            'exit_time': row[2].strftime('%Y-%m-%d %H:%M:%S') if row[2] else None,
+            'status': row[3]
+        })
+    else:
+        return jsonify({})
+
+
+
+
+# --- Main Route Modification: Fetch Status Data ---
 @app.route("/def", methods=["GET", "POST"])
 def def_page():
     """Main route for displaying and adding indents."""
@@ -443,12 +519,10 @@ def def_page():
             return redirect(url_for("def_page"))
 
         try:
-            # ✅ Extract customer sections (customers[0], customers[1], etc.)
+            # Existing logic — unchanged
             customers = []
             for key, values in form_data.items():
                 if key.startswith("customers["):
-                    # Key looks like: customers[0][name]
-                    # Extract index and subkey
                     parts = key.split("[")
                     index = int(parts[1].replace("]", ""))
                     field = parts[2].replace("]", "")
@@ -456,7 +530,7 @@ def def_page():
                         customers.append({})
                     customers[index][field] = values[0] if values else None
 
-            # ✅ Loop through each customer entry
+            # Insert each customer indent
             for cust in customers:
                 drop_location = cust.get("drop_location", "")
                 cursor.execute("""
@@ -464,9 +538,10 @@ def def_page():
                         indent_date, indent, allocation_date, customer_name, "range",
                         pickup_location, location, vehicle_number, vehicle_model,
                         vehicle_based, lr_no, material, load_per_bucket, no_of_buckets,
-                        t_load, pod_received, freight_tiger_number, freight_tiger_month
+                        t_load, pod_received, freight_tiger_number, freight_tiger_month,
+                        loading_time, parking_time, exit_time
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
                     request.form.get("indent_date"),
                     request.form.get("indent"),
@@ -486,6 +561,7 @@ def def_page():
                     request.form.get("pod_received"),
                     request.form.get("freight_tiger_number"),
                     request.form.get("freight_tiger_month"),
+                    None, None, None  # Tracking fields initialized as NULL
                 ))
 
             conn.commit()
@@ -499,8 +575,8 @@ def def_page():
         conn.close()
         return redirect(url_for("def_page"))
 
-    # ---------------- Fetch all indents ----------------
-    cursor.execute("SELECT * FROM indents")
+    # --- Fetch all indents (showing new tracking fields) ---
+    cursor.execute("SELECT * FROM indents ORDER BY indent_date DESC")
     rows = cursor.fetchall()
     col_names = [desc[0] for desc in cursor.description]
     indent_data = [dict(zip(col_names, row)) for row in rows]
@@ -509,7 +585,6 @@ def def_page():
     conn.close()
 
     return render_template("def.html", indent_data=indent_data, fleet_data=valid_vehicles)
-
 
 # -------------------------- Upload Indents --------------------------
 
