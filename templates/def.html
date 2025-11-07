@@ -35,44 +35,44 @@
     {% endfor %}
   {% endwith %}
 
-  {# ───────────────────────── Filter Card (UPDATED: Status Filter as Buttons) ──────────────────────────────── #}
+  {# ───────────────────────── Combined Filter Section ────────────────────────────── #}
   {% if indent_data %}
-  <div class="card shadow mb-4 border-0">
-    <div class="card-header bg-secondary text-white">
-      <h5 class="mb-0"><i class="bi bi-funnel me-2"></i> Filter Indents</h5>
-    </div>
-    <div class="card-body">
-      <div class="row g-3 align-items-end">
-        {# Date Filter Remains #}
-        <div class="col-md-4">
-          <label class="form-label">Filter by **Indent Date**</label>
-          <input type="date" id="filterIndentDate" class="form-control shadow-sm" />
-        </div>
+  <div class="card shadow mb-3 border-0">
+    <div class="card-body py-3">
+      <div class="row align-items-center">
 
-        {# Status Filter as Buttons (NEW UI) #}
-        <div class="col-md-6">
-          <label class="form-label d-block">Filter by Status</label>
-          <div class="btn-group shadow-sm" role="group" id="filterStatusButtons">
-            <button type="button" class="btn btn-primary active" data-status="">All Statuses</button>
-
-            <button type="button" class="btn btn-outline-warning" data-status="loading">Loading</button>
-            <button type="button" class="btn btn-outline-info" data-status="parking">Parking</button>
-            <button type="button" class="btn btn-outline-success" data-status="exit">Exit Completed</button>
+        {# Status Filters #}
+        <div class="col-md-8 mb-3 mb-md-0">
+          <h6 class="mb-2"><i class="bi bi-funnel me-1"></i> Filter by Status:</h6>
+          <div class="btn-group" role="group" id="status-filter-group">
+            <button type="button" class="btn btn-primary active" data-filter="all">All Indents</button>
+            <button type="button" class="btn btn-warning" data-filter="loading">Loading</button>
+            <button type="button" class="btn btn-info" data-filter="parking">Parking</button>
+            <button type="button" class="btn btn-success" data-filter="exit">Ready to Exit</button>
           </div>
         </div>
 
-        {# Reset Button Remains #}
-        <div class="col-md-2 d-flex align-items-end">
-          <button type="button" class="btn btn-outline-danger w-100" id="filterReset">
-            <i class="bi bi-x-circle me-1"></i> Reset Filters
-          </button>
+        {# Date Filters (New Dropdown) #}
+        <div class="col-md-4 text-md-end">
+          <h6 class="mb-2"><i class="bi bi-calendar-check me-1"></i> Filter by Date:</h6>
+          <div class="dropdown d-inline-block">
+            <button class="btn btn-secondary dropdown-toggle" type="button" id="dateFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false" data-current-date-filter="all">
+              All Dates
+            </button>
+            <ul class="dropdown-menu" aria-labelledby="dateFilterDropdown" id="date-filter-menu">
+              <li><a class="dropdown-item active" href="#" data-date-filter="all">All Dates</a></li>
+              <li><a class="dropdown-item" href="#" data-date-filter="today">Today</a></li>
+              <li><a class="dropdown-item" href="#" data-date-filter="week">This Week</a></li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>
   </div>
-  {# ────────────────────────────────────────────────────────────────────────── #}
+  {% endif %}
 
   {# ───────────────────────── Uploaded Indent Table ──────────────────────────────── #}
+  {% if indent_data %}
   <div class="card shadow mb-4 border-0">
     <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
       <h5 class="mb-0"><i class="bi bi-table me-2"></i> All Submitted Indents</h5>
@@ -81,47 +81,32 @@
       </a>
     </div>
     <div class="card-body table-responsive">
-      <table class="table table-striped table-bordered align-middle">
+      <table class="table table-striped table-bordered align-middle" id="indentTable">
         <thead class="table-dark">
           <tr>
             {% for key in indent_data[0].keys() %}
               <th>{{ key.replace('_',' ').title() }}</th>
             {% endfor %}
-            <th>Status</th> {# Status & Track combined in one column #}
+            <th>Status</th>
           </tr>
         </thead>
         <tbody id="indentTableBody">
+          {#
+             NOTE: The 'row.status' and 'row.indent_date' are required here.
+             Assuming 'row.status' and 'row.indent_date' are available
+             in your Jinja context:
+          #}
           {% for row in indent_data %}
-          {# Added data-current-status for JS filtering #}
-          <tr data-current-status="{{ row.current_status | default('none') }}">
-            {% for key, value in row.items() %}
+          <tr data-status="{{ row.status | default('unknown') }}" data-date="{{ row.indent_date }}">
+            {% for value in row.values() %}
               <td>{{ value }}</td>
             {% endfor %}
-            <td class="status-cell d-flex justify-content-between align-items-center">
-              {# 1. Status Badge #}
-              {% set status = row.current_status | default('none') %}
-              <div>
-                {% if status == 'exit' %}
-                  <span class="badge bg-success">Exit Completed!</span>
-                {% elif status == 'loading' %}
-                  <span class="badge bg-warning text-dark">Loading</span>
-                {% elif status == 'parking' %}
-                  <span class="badge bg-primary">Parking</span>
-                {% else %}
-                  <span class="badge bg-secondary">Pending / Not Started</span>
-                {% endif %}
-              </div>
-
-              {# 2. Track Button #}
-              {% if row.current_status != 'exit' %}
-                <button class="btn btn-outline-secondary btn-sm track-status-btn ms-2"
-                        data-indent="{{ row['indent'] }}"
-                        data-vehicle="{{ row['vehicle_number'] }}">
-                  <i class="bi bi-truck"></i> Track
-                </button>
-              {% else %}
-                <span class="text-muted small ms-2">N/A</span>
-              {% endif %}
+            <td>
+              <button class="btn btn-outline-secondary btn-sm track-status-btn"
+                      data-indent="{{ row['indent'] }}"
+                      data-vehicle="{{ row['vehicle_number'] }}">
+                <i class="bi bi-truck"></i> Track
+              </button>
             </td>
           </tr>
           {% endfor %}
@@ -171,7 +156,7 @@
         {# ── Indent General Info ── #}
         <div class="col-md-3">
           <label class="form-label">Indent Date</label>
-          <input type="date" name="indent_date" id="indentDateInput" class="form-control shadow-sm" required />
+          <input type="date" name="indent_date" class="form-control shadow-sm" required />
         </div>
         <div class="col-md-3">
           <label class="form-label">Indent #</label>
@@ -179,7 +164,7 @@
         </div>
         <div class="col-md-3">
           <label class="form-label">Allocation Date</label>
-          <input type="date" name="allocation_date" id="allocationDateInput" class="form-control shadow-sm" />
+          <input type="date" name="allocation_date" class="form-control shadow-sm" />
         </div>
         <div class="col-md-3">
           <label class="form-label">Pickup Location</label>
@@ -334,29 +319,6 @@
 {# ───────────────────────────── Optimized JavaScript Section ───────────────────────────── #}
 <script>
 document.addEventListener("DOMContentLoaded", function () {
-    // ------------------- Date Default Logic -------------------
-    const indentDateInput = document.getElementById('indentDateInput');
-    const allocationDateInput = document.getElementById('allocationDateInput');
-
-    function formatDate(date) {
-        const yyyy = date.getFullYear();
-        const mm = String(date.getMonth() + 1).padStart(2, '0'); // Months start at 0
-        const dd = String(date.getDate()).padStart(2, '0');
-        return `${yyyy}-${mm}-${dd}`;
-    }
-
-    if (indentDateInput) {
-        const today = new Date();
-        indentDateInput.value = formatDate(today);
-    }
-
-    if (allocationDateInput) {
-        const nextWeek = new Date();
-        nextWeek.setDate(nextWeek.getDate() + 7); // Add 7 days
-        allocationDateInput.value = formatDate(nextWeek);
-    }
-    // ------------------- End Date Default Logic -------------------
-
   // --- DOM Elements for Status Tracker ---
   const statusModal = new bootstrap.Modal(document.getElementById("statusModal"));
   const progressBar = document.getElementById("statusProgress");
@@ -370,15 +332,11 @@ document.addEventListener("DOMContentLoaded", function () {
   const btnExit = document.getElementById("btnExit");
   const trackBtns = document.querySelectorAll(".track-status-btn");
 
-  // --- Filtering DOM Elements (UPDATED) ---
-  const filterIndentDateInput = document.getElementById("filterIndentDate");
-  const filterStatusButtons = document.getElementById("filterStatusButtons"); // NEW: Button group container
-  const filterResetBtn = document.getElementById("filterReset");
-  const indentTableBody = document.getElementById("indentTableBody");
-
-  // Variable to store the currently selected status filter value (from buttons)
-  let currentStatusFilter = "";
-
+  // --- Global Filter Elements ---
+  const filterGroupStatus = document.getElementById('status-filter-group');
+  const filterGroupDate = document.getElementById('date-filter-menu');
+  const dateFilterDropdownBtn = document.getElementById('dateFilterDropdown');
+  const tableRows = document.querySelectorAll('#indentTableBody tr');
 
   // --- Utility: Update Progress Bar and Buttons ---
   function updateModalUI(status, loadT, parkT, exitT) {
@@ -438,52 +396,45 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   // --- Event: Track Button Click ---
-  if (trackBtns) {
-    trackBtns.forEach(btn => {
-      btn.addEventListener("click", async () => {
-        const indent = btn.getAttribute("data-indent");
-        const vehicle = btn.getAttribute("data-vehicle");
+  trackBtns.forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const indent = btn.getAttribute("data-indent");
+      const vehicle = btn.getAttribute("data-vehicle");
 
-        modalIndentID.textContent = indent;
-        modalVehicleID.textContent = vehicle;
+      modalIndentID.textContent = indent;
+      modalVehicleID.textContent = vehicle;
 
-        // Reset and fetch status
-        updateModalUI(null, null, null, null); // Initial reset
-        const data = await fetchStatus(indent, vehicle);
+      // Reset and fetch status
+      updateModalUI(null, null, null, null); // Initial reset
+      const data = await fetchStatus(indent, vehicle);
 
-        // Update UI based on fetched status
-        updateModalUI(data.status, data.loading_time, data.parking_time, data.exit_time);
+      // Update UI based on fetched status
+      updateModalUI(data.status, data.loading_time, data.parking_time, data.exit_time);
 
-        statusModal.show();
-      });
+      statusModal.show();
     });
-  }
+  });
 
   // --- Event: Status Update Button Clicks (Delegated Handlers) ---
-  if (btnLoading) {
-    btnLoading.addEventListener("click", async () => {
-      await updateStatus("loading");
-      // Reload to update the status badge in the main table and re-apply filters if needed
-      location.reload();
-    });
-  }
+  btnLoading.addEventListener("click", async () => {
+    const data = await updateStatus("loading");
+    updateModalUI("loading", data.timestamp, null, null);
+  });
 
-  if (btnParking) {
-    btnParking.addEventListener("click", async () => {
-      await updateStatus("parking");
-      location.reload();
-    });
-  }
+  btnParking.addEventListener("click", async () => {
+    const data = await updateStatus("parking");
+    // Preserve old loading time, update parking time
+    updateModalUI("parking", loadTime.textContent, data.timestamp, null);
+  });
 
-  if (btnExit) {
-    btnExit.addEventListener("click", async () => {
-      await updateStatus("exit");
-      location.reload();
-    });
-  }
+  btnExit.addEventListener("click", async () => {
+    const data = await updateStatus("exit");
+    // Preserve old times, update exit time
+    updateModalUI("exit", loadTime.textContent, parkTime.textContent, data.timestamp);
+  });
 
 
-  // ------------------- Customer Form Logic (Unchanged) -------------------
+  // ------------------- Customer Form Logic -------------------
 
   const container = document.getElementById("customerSectionContainer");
   const addBtn = document.getElementById("addCustomerBtn");
@@ -496,9 +447,8 @@ document.addEventListener("DOMContentLoaded", function () {
       // Update form names
       block.querySelectorAll("input, select").forEach(input => {
         const name = input.getAttribute("name");
-        if (name) {
-            input.setAttribute("name", name.replace(/\[\d+\]/, `[${i}]`));
-        }
+        // Regex to update the array index in the name attribute, e.g., 'customers[0][name]' -> 'customers[i][name]'
+        input.setAttribute("name", name.replace(/\[\d+\]/, `[${i}]`));
       });
       // Show remove button for all customers except the first one
       if (i > 0) {
@@ -509,171 +459,123 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  if (container) {
-    updateLabels();
-  }
+  // Initial check for the first customer's remove button (ensure it's hidden)
+  updateLabels();
 
-  if (addBtn) {
-    addBtn.addEventListener("click", () => {
-      const newBlock = container.firstElementChild.cloneNode(true);
-      newBlock.querySelectorAll("input, select").forEach(input => { input.value = ""; });
-      container.appendChild(newBlock);
-      updateLabels();
-    });
-  }
+  addBtn.addEventListener("click", () => {
+    const newBlock = container.firstElementChild.cloneNode(true);
+    // Clear values in cloned block
+    newBlock.querySelectorAll("input, select").forEach(input => { input.value = ""; });
+    container.appendChild(newBlock);
+    updateLabels(); // Update all labels/names/remove buttons
+  });
 
-  if (container) {
-    container.addEventListener("click", e => {
-      if (e.target.closest(".removeCustomer")) {
-        e.target.closest(".customer-block").remove();
-        updateLabels();
-      }
-    });
-
-    container.addEventListener("input", e => {
-      if (e.target.classList.contains("loadPerBucketInput") || e.target.classList.contains("noOfBucketsInput")) {
-        const block = e.target.closest(".customer-block");
-        const loadInput = block.querySelector(".loadPerBucketInput");
-        const bucketsInput = block.querySelector(".noOfBucketsInput");
-        const totalLoadInput = block.querySelector(".totalLoadInput");
-
-        const load = parseFloat(loadInput.value) || 0;
-        const buckets = parseFloat(bucketsInput.value) || 0;
-
-        totalLoadInput.value = (load * buckets).toFixed(2);
-      }
-    });
-  }
-
-  // ───────────────────────────── Filtering Logic (UPDATED to use Buttons) ─────────────────────────────
-
-  /**
-   * Filters the table rows based on the Indent Date and status selection.
-   */
-  function filterTable() {
-    if (!indentTableBody) return;
-
-    const dateFilter = filterIndentDateInput.value.trim();
-    // Use the global variable updated by button click
-    const statusFilter = currentStatusFilter;
-
-    const rows = indentTableBody.querySelectorAll("tr");
-
-    rows.forEach(row => {
-      const cells = row.querySelectorAll("td");
-      let matchesDate = false;
-      let matchesStatus = false;
-
-      // Assuming 'indent_date' is the *first* data column in the table (index 0).
-      const rowIndentDate = cells[0].textContent.trim();
-      const rowStatus = row.getAttribute('data-current-status');
-
-      // 1. Check Date Filter
-      if (dateFilter === "") {
-        matchesDate = true;
-      } else {
-        matchesDate = (rowIndentDate === dateFilter);
-      }
-
-      // 2. Check Status Filter (Logic remains the same)
-      if (statusFilter === "") {
-        matchesStatus = true; // All Statuses
-      } else if (statusFilter === "track") {
-        // 'Trackable' means any active status (loading or parking) or not yet started ('none')
-        matchesStatus = (rowStatus === 'loading' || rowStatus === 'parking' || rowStatus === 'none');
-      } else if (statusFilter === "exit") {
-        // Show only rows that are completed
-        matchesStatus = (rowStatus === 'exit');
-      } else {
-        // Filter for specific statuses (loading, parking)
-        matchesStatus = (rowStatus === statusFilter);
-      }
-
-      // Show or hide the row
-      if (matchesDate && matchesStatus) {
-        row.style.display = "";
-      } else {
-        row.style.display = "none";
-      }
-    });
-  }
-
-  // Event Listeners for Filtering
-  if (indentTableBody) {
-    // 1. Date Filter
-    filterIndentDateInput.addEventListener("change", filterTable);
-
-    // 2. Status Button Filter (NEW Handler)
-    if (filterStatusButtons) {
-        filterStatusButtons.addEventListener("click", (e) => {
-            const clickedButton = e.target.closest('button');
-            if (clickedButton && clickedButton.dataset.status !== undefined) {
-                // Update the current filter state
-                currentStatusFilter = clickedButton.dataset.status;
-
-                // Update active button styling
-                filterStatusButtons.querySelectorAll('button').forEach(btn => {
-                    btn.classList.remove('active', 'btn-primary', 'btn-outline-warning', 'btn-outline-info', 'btn-outline-success');
-                    // Reset to outline primary or the appropriate outline class
-                    if (btn.dataset.status === 'loading') {
-                        btn.classList.add('btn-outline-warning');
-                    } else if (btn.dataset.status === 'parking') {
-                        btn.classList.add('btn-outline-info');
-                    } else if (btn.dataset.status === 'exit') {
-                        btn.classList.add('btn-outline-success');
-                    } else {
-                        btn.classList.add('btn-outline-primary');
-                    }
-                });
-
-                // Set the clicked button as active, using the primary/filled style
-                if (currentStatusFilter === 'loading') {
-                    clickedButton.classList.remove('btn-outline-warning');
-                    clickedButton.classList.add('btn-warning', 'active');
-                } else if (currentStatusFilter === 'parking') {
-                    clickedButton.classList.remove('btn-outline-info');
-                    clickedButton.classList.add('btn-info', 'active');
-                } else if (currentStatusFilter === 'exit') {
-                    clickedButton.classList.remove('btn-outline-success');
-                    clickedButton.classList.add('btn-success', 'active');
-                } else {
-                    clickedButton.classList.remove('btn-outline-primary');
-                    clickedButton.classList.add('btn-primary', 'active');
-                }
-
-                // Apply the filter
-                filterTable();
-            }
-        });
+  container.addEventListener("click", e => {
+    if (e.target.closest(".removeCustomer")) {
+      e.target.closest(".customer-block").remove();
+      updateLabels(); // Recalculate and update indices/labels after removal
     }
+  });
+
+  // Event Delegation for Total Load Calculation
+  container.addEventListener("input", e => {
+    if (e.target.classList.contains("loadPerBucketInput") || e.target.classList.contains("noOfBucketsInput")) {
+      const block = e.target.closest(".customer-block");
+      const loadInput = block.querySelector(".loadPerBucketInput");
+      const bucketsInput = block.querySelector(".noOfBucketsInput");
+      const totalLoadInput = block.querySelector(".totalLoadInput");
+
+      const load = parseFloat(loadInput.value) || 0;
+      const buckets = parseFloat(bucketsInput.value) || 0;
+
+      // Calculate and set total load
+      totalLoadInput.value = (load * buckets).toFixed(2); // Use toFixed(2) for better number handling
+    }
+  });
 
 
-    // 3. Reset Button
-    filterResetBtn.addEventListener("click", () => {
-      // Reset Date
-      filterIndentDateInput.value = "";
+  // ------------------- Combined Filter Logic -------------------
 
-      // Reset Status Buttons UI and Logic
-      currentStatusFilter = "";
-      filterStatusButtons.querySelectorAll('button').forEach(btn => {
-          btn.classList.remove('active', 'btn-primary', 'btn-warning', 'btn-info', 'btn-success');
-          if (btn.dataset.status === 'loading') {
-              btn.classList.add('btn-outline-warning');
-          } else if (btn.dataset.status === 'parking') {
-              btn.classList.add('btn-outline-info');
-          } else if (btn.dataset.status === 'exit') {
-              btn.classList.add('btn-outline-success');
-          } else {
-              btn.classList.add('btn-primary'); // 'All Statuses' is the default active
-          }
-      });
-      // Set 'All Statuses' button active again
-      filterStatusButtons.querySelector('[data-status=""]').classList.add('active');
+  // Helper to format a date as YYYY-MM-DD (matches input[type=date] and data-date)
+  const formatDate = (date) => date.toISOString().split('T')[0];
 
+  // Helper to calculate the start of the current week (Sunday)
+  const getStartOfWeek = (date) => {
+    const d = new Date(date);
+    const day = d.getDay(); // 0 is Sunday, 1 is Monday...
+    const diff = d.getDate() - day;
+    d.setDate(diff);
+    return formatDate(d);
+  };
 
-      filterTable(); // Apply the reset state
+  // Master function to apply both Status and Date filters
+  function applyFilters() {
+    const currentStatusFilter = filterGroupStatus.querySelector('.active').dataset.filter;
+    const currentDateFilter = dateFilterDropdownBtn.dataset.currentDateFilter;
+    const todayDate = formatDate(new Date());
+    const startOfWeek = getStartOfWeek(new Date());
+
+    tableRows.forEach(row => {
+      const rowStatus = row.getAttribute('data-status');
+      const rowDate = row.getAttribute('data-date'); // This must be in 'YYYY-MM-DD' format
+
+      // 1. Check Status Filter
+      const statusMatch = currentStatusFilter === 'all' || rowStatus === currentStatusFilter;
+
+      // 2. Check Date Filter
+      let dateMatch = false;
+      if (currentDateFilter === 'all') {
+        dateMatch = true;
+      } else if (currentDateFilter === 'today') {
+        dateMatch = rowDate === todayDate;
+      } else if (currentDateFilter === 'week') {
+        // Date check: Is rowDate >= startOfWeek (if rowDate is valid)
+        dateMatch = rowDate >= startOfWeek;
+      }
+
+      // 3. Apply combined filter
+      if (statusMatch && dateMatch) {
+        row.style.display = ''; // Show row
+      } else {
+        row.style.display = 'none'; // Hide row
+      }
     });
   }
+
+  // Event: Status Button Click
+  if (filterGroupStatus) {
+    filterGroupStatus.addEventListener('click', (e) => {
+      const target = e.target.closest('button');
+      if (!target || !target.dataset.filter) return;
+
+      // Update active button
+      filterGroupStatus.querySelectorAll('button').forEach(btn => btn.classList.remove('active'));
+      target.classList.add('active');
+
+      applyFilters(); // Re-run combined filter
+    });
+  }
+
+  // Event: Date Dropdown Item Click
+  if (filterGroupDate) {
+    filterGroupDate.addEventListener('click', (e) => {
+      const target = e.target.closest('a');
+      if (!target || !target.dataset.dateFilter) return;
+
+      // Update active item in dropdown
+      filterGroupDate.querySelectorAll('.dropdown-item').forEach(item => item.classList.remove('active'));
+      target.classList.add('active');
+
+      // Update dropdown button text and data attribute
+      dateFilterDropdownBtn.textContent = target.textContent;
+      dateFilterDropdownBtn.dataset.currentDateFilter = target.dataset.dateFilter;
+
+      applyFilters(); // Re-run combined filter
+    });
+  }
+
+  // Initial application of filter (will show all by default)
+  applyFilters();
 });
 </script>
 
