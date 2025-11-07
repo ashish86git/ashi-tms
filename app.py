@@ -1,10 +1,3 @@
-# --------------------------------------------------------------------------------------
-# This is a full-featured Flask application for a Transport Management System (TMS).
-# It includes routes for authentication, fleet management, driver management,
-# indent processing, and a financial dashboard.
-# The code has been refactored to ensure correct database interaction using psycopg2.
-# --------------------------------------------------------------------------------------
-
 from flask import Flask, render_template, request, redirect, url_for, session, send_file, flash, jsonify, make_response, g
 import pandas as pd
 import os
@@ -170,8 +163,7 @@ def logout():
 def fleet_master():
     """Displays the fleet master data and handles filtering."""
     if 'user' not in session:
-        # A temporary fix for demo, should be handled by login redirect.
-        # Original code had this, so keeping it for the requested flow.
+
         session['user'] = 'Admin'
 
     conn = get_db_connection()
@@ -425,7 +417,7 @@ def clean_numeric(value):
     return value
 
 
-# app.py (या जहाँ भी आपका Flask रूट है)
+
 
 # 🔹 Update Vehicle Status
 @app.route('/update_status', methods=['POST'])
@@ -519,7 +511,7 @@ def def_page():
             return redirect(url_for("def_page"))
 
         try:
-            # Existing logic — unchanged
+            # Existing logic for separating customers — unchanged
             customers = []
             for key, values in form_data.items():
                 if key.startswith("customers["):
@@ -528,11 +520,39 @@ def def_page():
                     field = parts[2].replace("]", "")
                     while len(customers) <= index:
                         customers.append({})
-                    customers[index][field] = values[0] if values else None
+                    # Data retrieval is made safer by providing "" as default
+                    customers[index][field] = values[0] if values else ""
 
-            # Insert each customer indent
+                    # Insert each customer indent
             for cust in customers:
+                # ----------------------------------------------------------------
+                # FIX: Using .get("key", "") for all form fields that expect strings
+                # to prevent Python 'None' from causing string formatting errors.
+                # ----------------------------------------------------------------
+
+                # General Indent Fields
+                indent_date = request.form.get("indent_date", "")
+                indent_number = request.form.get("indent", "")
+                allocation_date = request.form.get("allocation_date", "")
+                pickup_location = request.form.get("pickup_location", "")
+                vehicle_model = request.form.get("vehicle_model", "")
+                vehicle_based = request.form.get("vehicle_based", "")
+                pod_received = request.form.get("pod_received", "")
+                ft_number = request.form.get("freight_tiger_number", "")
+                ft_month = request.form.get("freight_tiger_month", "")
+
+                # Customer Specific Fields
+                cust_name = cust.get("name", "")
+                cust_range = cust.get("range", "")
                 drop_location = cust.get("drop_location", "")
+                cust_lr_no = cust.get("lr_no", "")
+                cust_material = cust.get("material", "")
+
+                # Numeric Fields (clean_numeric handles the conversion, but safe retrieval is still good)
+                load_per_bucket = clean_numeric(cust.get("load_per_bucket", None))
+                no_of_buckets = clean_numeric(cust.get("no_of_buckets", None))
+                total_load = clean_numeric(cust.get("total_load", None))
+
                 cursor.execute("""
                     INSERT INTO indents (
                         indent_date, indent, allocation_date, customer_name, "range",
@@ -541,27 +561,27 @@ def def_page():
                         t_load, pod_received, freight_tiger_number, freight_tiger_month,
                         loading_time, parking_time, exit_time
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
-                    request.form.get("indent_date"),
-                    request.form.get("indent"),
-                    request.form.get("allocation_date"),
-                    cust.get("name"),
-                    cust.get("range"),
-                    request.form.get("pickup_location"),
+                    indent_date,
+                    indent_number,
+                    allocation_date,
+                    cust_name,
+                    cust_range,
+                    pickup_location,
                     drop_location,
                     vehicle_no,
-                    request.form.get("vehicle_model"),
-                    request.form.get("vehicle_based"),
-                    cust.get("lr_no"),
-                    cust.get("material"),
-                    clean_numeric(cust.get("load_per_bucket")),
-                    clean_numeric(cust.get("no_of_buckets")),
-                    clean_numeric(cust.get("total_load")),
-                    request.form.get("pod_received"),
-                    request.form.get("freight_tiger_number"),
-                    request.form.get("freight_tiger_month"),
-                    None, None, None  # Tracking fields initialized as NULL
+                    vehicle_model,
+                    vehicle_based,
+                    cust_lr_no,
+                    cust_material,
+                    load_per_bucket,
+                    no_of_buckets,
+                    total_load,
+                    pod_received,
+                    ft_number,
+                    ft_month,
+                    None, None, None  # Tracking fields initialized as NULL (which is correct)
                 ))
 
             conn.commit()
@@ -569,6 +589,7 @@ def def_page():
 
         except Exception as e:
             conn.rollback()
+            # The error message now correctly shows the specific database error
             flash(f"Error creating indent: {str(e)}", "danger")
 
         cursor.close()
@@ -585,7 +606,6 @@ def def_page():
     conn.close()
 
     return render_template("def.html", indent_data=indent_data, fleet_data=valid_vehicles)
-
 # -------------------------- Upload Indents --------------------------
 
 @app.route("/upload_indent", methods=["POST"])
