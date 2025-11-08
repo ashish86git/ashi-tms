@@ -71,20 +71,30 @@
       transform: translateX(-100%);
     }
 
+    /* ✅ MODIFIED: .logo-section को आयताकार बनाने के लिए padding बढ़ाया गया */
     .sidebar .logo-section {
-      padding: 20px 0 15px;
-      /* Border removed for cleaner look, replaced with slight bottom padding/shadow if needed */
+      padding: 15px 5px 15px;
       text-align: center;
-      background-color: #921A37; /* Slightly different shade for header */
+      background-color: #921A37;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
     }
 
+    /* ✅ MODIFIED: लोगो का साइज़ बढ़ाया गया और आयताकार (rectangle) बनाया गया */
     .sidebar img {
-      width: 60px; /* Larger logo */
-      height: 60px;
-      border-radius: 50%;
-      border: 3px solid var(--accent-gold); /* Gold ring for premium feel */
+      width: 120px; /* चौड़ाई 150px से कम करके 120px की गई */
+      height: 80px; /* ऊँचाई को चौड़ाई से कम रखा गया ताकि आयताकार दिखे */
+      border-radius: 8px; /* आयताकार रखने के लिए 100% को 8px किया गया */
+      border: 4px solid var(--accent-gold);
       padding: 0;
-      object-fit: cover;
+      object-fit: contain; /* इमेज को बिना काटे पूरी तरह से कंटेनर में फिट करने के लिए */
+      filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.2));
+      transform: scale(1);
+      transition: all 0.3s ease-in-out;
+    }
+
+    .sidebar img:hover {
+        transform: scale(1.05);
+        filter: drop-shadow(0 5px 10px rgba(0, 0, 0, 0.4));
     }
 
     .sidebar h6 {
@@ -211,6 +221,63 @@
       }
     }
   </style>
+
+  <style>
+    /* New rule for the Financial Dashboard heading color to match --primary-maroon */
+    .financial-dashboard-heading {
+        color: var(--primary-maroon) !important;
+        font-weight: 700;
+    }
+
+    body { background-color: #fdf2f2; font-family: 'Segoe UI', sans-serif; }
+    h2 { font-weight: 700; }
+
+    .table thead th {
+        background-color: #8B0000 !important;
+        color: #fff;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .table-hover tbody tr:hover { background-color: #ffe6e6; transition: all 0.2s ease-in-out; }
+    .table-responsive { background-color: #fff; border-radius: 0.5rem; padding: 0.5rem; }
+    .form-control-lg { border-radius: 0.5rem; }
+    .btn-lg { border-radius: 0.5rem; font-weight: 500; }
+    .sticky-top { top: 0; z-index: 10; }
+
+    /* Cards */
+    .card { border-radius: 0.75rem; transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out; }
+    .card:hover { transform: translateY(-8px); box-shadow: 0 10px 25px rgba(0,0,0,0.25); }
+    .revenue-bar { transition: width 0.5s ease; height: 6px; margin-top: 5px; border-radius:3px; }
+
+    /* PnL colors */
+    .text-success { color: #28a745 !important; font-weight: 600; }
+    .text-danger { color: #dc3545 !important; font-weight: 600; }
+
+    /* Card background color adjusted to use primary maroon for consistency (old code used hardcoded red) */
+    .card[style*="background: linear-gradient(135deg, #ffcccc 0%, #ff4d4f 100%)"] {
+        background: linear-gradient(135deg, #fcebeb 0%, var(--secondary-red) 100%) !important;
+        color: var(--text-dark) !important;
+    }
+    .revenue-bar.bg-danger {
+        background-color: var(--primary-maroon) !important; /* Use primary color for bar */
+    }
+    .btn-danger {
+        background-color: var(--primary-maroon) !important;
+        border-color: var(--primary-maroon) !important;
+    }
+    .btn-danger:hover {
+        background-color: #b82548 !important; /* Slightly darker on hover */
+        border-color: #b82548 !important;
+    }
+
+    @media (max-width: 992px) {
+        .col-lg-2 { flex: 0 0 50%; max-width: 50%; } /* Two cards per row on tablets */
+    }
+    @media (max-width: 576px) {
+        .col-lg-2, .col-md-4 { flex: 0 0 100%; max-width: 100%; } /* One card per row on mobiles */
+    }
+  </style>
+
 </head>
 
 <body>
@@ -294,15 +361,101 @@
       <div class="col-12">
           <h2 class="mb-4 text-dark" style="font-weight: 600;">Welcome to the TMS Portal!</h2>
           <div class="card shadow-sm border-0 mb-4">
-<!--              <div class="card-body">-->
-<!--                  <h5 class="card-title text-secondary">Dashboard Overview</h5>-->
-<!--                  <p class="card-text">Your central hub for fleet, finance, and logistics operations. Use the sidebar to navigate all modules.</p>-->
-<!--&lt;!&ndash;                  <a href="/orders" class="btn btn-sm" style="background-color: var(&#45;&#45;secondary-red); color: var(&#45;&#45;text-light);">View Orders</a>&ndash;&gt;-->
-<!--              </div>-->
-          </div>
+</div>
       </div>
   </div>
-  {% block content %}{% endblock %}
+  {% block content %}
+
+<div class="container-fluid mt-4">
+    <h2 class="mb-4 financial-dashboard-heading">Financial Dashboard</h2>
+
+    <div class="row mb-4">
+        {% for vehicle in top_vehicles %}
+        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+            <div class="card shadow-sm border-0 text-center p-3 h-100"
+                 style="background: linear-gradient(135deg, #ffcccc 0%, #ff4d4f 100%); color: #000;">
+                <div class="card-body">
+                    <h5 class="card-title text-truncate">{{ vehicle['Vehicle Name'] }}</h5>
+                    <p class="card-text mb-1"><strong>ID:</strong> {{ vehicle['Vehicle ID'] }}</p>
+                    <p class="card-text mb-1"><strong>Trips:</strong> {{ vehicle['Trips'] }}</p>
+                    <p class="card-text mb-1"><strong>Revenue:</strong> ₹{{ vehicle['Revenue'] | round(2) }}</p>
+                    <p class="card-text mb-1"><strong>Total Distance:</strong> {{ vehicle['Total Distance Travelled'] | round(2) }} km</p>
+                    <div class="revenue-bar bg-danger rounded" style="width: {{ vehicle['Revenue_Percent'] }}%; height: 6px; margin-top:5px;"></div>
+                    <p class="card-text mb-0 {% if vehicle['PnL'] >= 0 %}text-success{% else %}text-danger{% endif %}">
+                        <strong>PnL:</strong> ₹{{ vehicle['PnL'] | round(2) }}
+                    </p>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <form class="row g-3 mb-4 p-3 bg-light rounded shadow-sm" method="get">
+        <div class="col-md-3">
+            <input type="text" name="vehicle_id" placeholder="Vehicle ID" class="form-control form-control-lg" value="{{ vehicle_filter }}">
+        </div>
+        <div class="col-md-3">
+            <input type="text" name="driver_name" placeholder="Driver Name" class="form-control form-control-lg" value="{{ driver_filter }}">
+        </div>
+        <div class="col-md-6 d-flex align-items-center">
+            <button type="submit" class="btn btn-danger me-2 btn-lg">Filter</button>
+            <a href="{{ url_for('financial') }}" class="btn btn-secondary me-2 btn-lg">Reset</a>
+            <a href="{{ url_for('financial', export='csv', vehicle_id=vehicle_filter, driver_name=driver_filter) }}" class="btn btn-success btn-lg">Export CSV</a>
+        </div>
+    </form>
+
+    <div class="table-responsive shadow-sm rounded">
+        <table class="table table-hover table-bordered align-middle text-center mb-0">
+            <thead class="table-dark sticky-top">
+                <tr>
+                    <th>Vehicle ID</th>
+                    <th>Vehicle Name</th>
+                    <th>Driver Name</th>
+                    <th>Status</th>
+                    <th>Type</th>
+                    <th>Group</th>
+                    <th>Customer</th>
+                    <th>Material</th>
+                    <th>LR No.</th>
+                    <th>Pickup</th>
+                    <th>Drop</th>
+                    <th>No. Buckets</th>
+                    <th>Load/Bucket</th>
+                    <th>Total Load</th>
+                    <th>Fuel Cost</th>
+                    <th>Total Cost</th>
+                    <th>Revenue</th>
+                    <th>PnL</th>
+                    <th>Total Distance Travelled (km)</th>  </tr>
+            </thead>
+            <tbody>
+                {% for trip in routes %}
+                <tr class="align-middle">
+                    <td>{{ trip['Vehicle ID'] }}</td>
+                    <td>{{ trip['Vehicle Name'] }}</td>
+                    <td>{{ trip['Driver Name'] }}</td>
+                    <td>{{ trip['Status'] }}</td>
+                    <td>{{ trip['Type'] }}</td>
+                    <td>{{ trip['Group'] }}</td>
+                    <td>{{ trip['Customer'] }}</td>
+                    <td>{{ trip['Material'] }}</td>
+                    <td>{{ trip['LR No.'] }}</td>
+                    <td>{{ trip['Pickup'] }}</td>
+                    <td>{{ trip['Drop'] }}</td>
+                    <td>{{ trip['No. Buckets'] }}</td>
+                    <td>{{ trip['Load/Bucket'] }}</td>
+                    <td>{{ trip['Total Load'] }}</td>
+                    <td>{{ trip['Fuel Cost'] | round(2) }}</td>
+                    <td>{{ trip['Total Cost'] | round(2) }}</td>
+                    <td>{{ trip['Revenue'] | round(2) }}</td>
+                    <td class="{% if trip['PnL'] >= 0 %}text-success{% else %}text-danger{% endif %}">{{ trip['PnL'] | round(2) }}</td>
+                    <td>{{ trip['Total Distance Travelled'] | round(2) }}</td> </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
 </div>
 
 {% with messages = get_flashed_messages(with_categories=true) %}

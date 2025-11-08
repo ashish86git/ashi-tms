@@ -16,6 +16,7 @@
                     <p class="card-text mb-1"><strong>ID:</strong> {{ vehicle['Vehicle ID'] }}</p>
                     <p class="card-text mb-1"><strong>Trips:</strong> {{ vehicle['Trips'] }}</p>
                     <p class="card-text mb-1"><strong>Revenue:</strong> ₹{{ vehicle['Revenue'] | round(2) }}</p>
+                    <p class="card-text mb-1"><strong>Total Distance:</strong> {{ vehicle['Total Distance Travelled'] | round(2) }} km</p>
                     <div class="revenue-bar bg-danger rounded" style="width: {{ vehicle['Revenue_Percent'] }}%; height: 6px; margin-top:5px;"></div>
                     <p class="card-text mb-0 {% if vehicle['PnL'] >= 0 %}text-success{% else %}text-danger{% endif %}">
                         <strong>PnL:</strong> ₹{{ vehicle['PnL'] | round(2) }}
@@ -64,6 +65,7 @@
                     <th>Total Cost</th>
                     <th>Revenue</th>
                     <th>PnL</th>
+                    <th>Total Distance Travelled (km)</th>  <!-- ✅ NEW COLUMN -->
                 </tr>
             </thead>
             <tbody>
@@ -87,6 +89,7 @@
                     <td>{{ trip['Total Cost'] | round(2) }}</td>
                     <td>{{ trip['Revenue'] | round(2) }}</td>
                     <td class="{% if trip['PnL'] >= 0 %}text-success{% else %}text-danger{% endif %}">{{ trip['PnL'] | round(2) }}</td>
+                    <td>{{ trip['Total Distance Travelled'] | round(2) }}</td> <!-- ✅ NEW DATA CELL -->
                 </tr>
                 {% endfor %}
             </tbody>
