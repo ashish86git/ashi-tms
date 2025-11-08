@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, s
 import pandas as pd
 import os
 import io
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from collections import defaultdict
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -761,11 +761,17 @@ def calculate_distance(pickup, drop):
         return 80
     return 150
 
+# ─────────────────────────────── Safe Decimal Helper ─────────────────────────────── #
+# ─────────────── Helper: Safe Decimal ─────────────── #
 def safe_decimal(value, default=0):
+    """Safely convert any value to Decimal, returning default on failure."""
     try:
-        return Decimal(value if value is not None else default)
-    except:
+        if value in (None, '', 'NA', 'NaN'):
+            return Decimal(default)
+        return Decimal(str(value).strip())
+    except (InvalidOperation, TypeError, ValueError):
         return Decimal(default)
+
 
 @app.route('/financial')
 def financial():
@@ -777,13 +783,14 @@ def financial():
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    fuel_price_per_liter = Decimal('96.0')
-    fuel_efficiency_kmpl = Decimal('12.0')
-    toll_tax_per_trip = Decimal('100.0')
-    misc_cost_per_trip = Decimal('50.0')
+    # ─────────────── Constants ─────────────── #
+    fuel_price_per_liter = safe_decimal('96.0')
+    fuel_efficiency_kmpl = safe_decimal('12.0')
+    toll_tax_per_trip = safe_decimal('100.0')
+    misc_cost_per_trip = safe_decimal('50.0')
     cost_per_km_fuel = fuel_price_per_liter / fuel_efficiency_kmpl
 
-    # Fetch all indents with customers, join with fleet and driver_master
+    # ─────────────── Fetch all indents ─────────────── #
     query = """
     SELECT
         f.vehicle_id,
@@ -803,14 +810,15 @@ def financial():
         i.load_per_bucket,
         i.material,
         i.lr_no,
-        i.customer_name
+        i.customer_name,
+        i.range
     FROM fleet f
     LEFT JOIN driver_master dm ON f.driver_id = dm.driver_id
     LEFT JOIN indents i ON f.vehicle_id::text = i.vehicle_number
     WHERE i.indent_date IS NOT NULL
     """
 
-    # Apply filters dynamically
+    # Dynamic filters
     filters = []
     if vehicle_filter:
         filters.append(f"f.vehicle_id::text = '{vehicle_filter}'")
@@ -821,18 +829,40 @@ def financial():
 
     cur.execute(query)
     rows = cur.fetchall()
+
+    # ─────────────── SUM of End-of-Range Distance per Vehicle ─────────────── #
+    cur.execute("""
+        SELECT
+            vehicle_number::text AS vehicle_id,
+            SUM(
+                COALESCE(
+                    CASE
+                        WHEN range ~ '^[0-9]+(\\.[0-9]+)?$' THEN range::numeric
+                        WHEN range ~ '^[0-9]+(\\.[0-9]+)?-[0-9]+(\\.[0-9]+)?$' THEN
+                            (regexp_replace(range, '.*-(\\d+(?:\\.\\d+)?)', '\\1'))::numeric
+                        ELSE 0
+                    END,
+                    0
+                )
+            ) AS total_distance
+        FROM indents
+        WHERE range IS NOT NULL
+        GROUP BY vehicle_number
+    """)
+    range_data = {row['vehicle_id']: safe_decimal(row['total_distance']) for row in cur.fetchall()}
+
     cur.close()
     conn.close()
 
+    # ─────────────── Calculations ─────────────── #
     routes = []
     summary = defaultdict(lambda: defaultdict(Decimal))
 
     for data in rows:
-        # Safely convert values
-        no_of_buckets = Decimal(data['no_of_buckets'] or 0)
-        load_per_bucket = Decimal(data['load_per_bucket'] or 0)
-        vehicle_avg = Decimal(data['vehicle_avg'] or 0)
-        total_km = Decimal(calculate_distance(data['pickup_location'], data['drop_location']))
+        no_of_buckets = safe_decimal(data.get('no_of_buckets'))
+        load_per_bucket = safe_decimal(data.get('load_per_bucket'))
+        vehicle_avg = safe_decimal(data.get('vehicle_avg'))
+        total_km = safe_decimal(calculate_distance(data.get('pickup_location'), data.get('drop_location')))
 
         total_load = no_of_buckets * load_per_bucket
         revenue = total_load * vehicle_avg
@@ -840,42 +870,46 @@ def financial():
         total_cost = fuel_cost + toll_tax_per_trip + misc_cost_per_trip
         pnl = revenue - total_cost
 
-        # Each customer creates a separate row
+        vehicle_id = data['vehicle_id']
+        total_distance_travelled = range_data.get(str(vehicle_id), Decimal(0))
+
         trip = {
-            'Vehicle ID': data['vehicle_id'],
-            'Vehicle Name': data['vehicle_name'],
+            'Vehicle ID': vehicle_id,
+            'Vehicle Name': data.get('vehicle_name', ''),
             'Driver Name': data.get('driver_name', ''),
-            'Status': data['status'],
-            'Type': data['type'],
-            'Group': data['group'],
-            'Customer': data.get('customer_name'),
-            'Material': data.get('material'),
-            'LR No.': data.get('lr_no'),
-            'Pickup': data['pickup_location'],
-            'Drop': data['drop_location'],
+            'Status': data.get('status', ''),
+            'Type': data.get('type', ''),
+            'Group': data.get('group', ''),
+            'Customer': data.get('customer_name', ''),
+            'Material': data.get('material', ''),
+            'LR No.': data.get('lr_no', ''),
+            'Pickup': data.get('pickup_location', ''),
+            'Drop': data.get('drop_location', ''),
             'No. Buckets': no_of_buckets,
             'Load/Bucket': load_per_bucket,
             'Total Load': total_load,
             'Fuel Cost': fuel_cost,
             'Total Cost': total_cost,
             'Revenue': revenue,
-            'PnL': pnl
+            'PnL': pnl,
+            'Total Distance Travelled': total_distance_travelled
         }
         routes.append(trip)
 
-        # Aggregate per vehicle for top 5
-        summary[data['vehicle_id']]['Vehicle ID'] = data['vehicle_id']
-        summary[data['vehicle_id']]['Vehicle Name'] = data['vehicle_name']
-        summary[data['vehicle_id']]['Revenue'] += revenue
-        summary[data['vehicle_id']]['Fuel_Cost'] += fuel_cost
-        summary[data['vehicle_id']]['Total_Cost'] += total_cost
-        summary[data['vehicle_id']]['PnL'] += pnl
-        summary[data['vehicle_id']]['Trips'] += 1
+        # Aggregate totals per vehicle
+        summary[vehicle_id]['Vehicle ID'] = vehicle_id
+        summary[vehicle_id]['Vehicle Name'] = data.get('vehicle_name', '')
+        summary[vehicle_id]['Revenue'] += revenue
+        summary[vehicle_id]['Fuel_Cost'] += fuel_cost
+        summary[vehicle_id]['Total_Cost'] += total_cost
+        summary[vehicle_id]['PnL'] += pnl
+        summary[vehicle_id]['Trips'] += 1
+        summary[vehicle_id]['Total Distance Travelled'] = total_distance_travelled
 
-    # Top 5 Vehicles by Revenue
+    # ─────────────── Top 5 Vehicles by Revenue ─────────────── #
     top_vehicles = sorted(summary.values(), key=lambda x: x['Revenue'], reverse=True)[:5]
 
-    # CSV Export
+    # ─────────────── CSV Export ─────────────── #
     if export_csv.lower() == 'csv':
         import pandas as pd, io
         df = pd.DataFrame(routes)
@@ -887,6 +921,7 @@ def financial():
         response.headers["Content-type"] = "text/csv"
         return response
 
+    # ─────────────── Render Template ─────────────── #
     return render_template(
         "financial_dashboard.html",
         routes=routes,
@@ -895,8 +930,6 @@ def financial():
         vehicle_filter=vehicle_filter,
         driver_filter=driver_filter
     )
-
-
 
 # -------------------------- Unused/Placeholder Routes --------------------------
 # The following routes were in the original code but were incomplete or not
