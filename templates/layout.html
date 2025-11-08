@@ -3,21 +3,34 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>TMS Portal</title>
+  <title>TMS Portal - Professional</title>
 
-  <!-- Bootstrap & Icons -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 
   <style>
-    body {
-      font-family: 'Poppins', sans-serif;
-      background-color: #f1f3f5;
-      margin: 0;
+
+    :root {
+      --primary-maroon: #f5221b; /* Richer, Professional Maroon */
+      --secondary-red: #C73E4E; /* Slightly lighter red for accents */
+      --accent-gold: #FFC107; /* A sophisticated gold/yellow for highlights (instead of bright red) */
+      --text-dark: #343a40; /* Darker text color for better readability on light background */
+      --text-light: #f7fafa; /* Light text color (mostly white) */
+      --background-light: #f8f9fa; /* Very light gray/white background for main content */
+      --background-body: #f1f2f6; /* Subtle background for the page */
+      --shadow-soft: 0 4px 6px rgba(0, 0, 0, 0.1);
     }
 
+    body {
+      font-family: 'Poppins', sans-serif;
+      background-color: var(--background-body);
+      margin: 0;
+      color: var(--text-dark);
+    }
+
+    /* --- Navbar Styling --- */
     .navbar {
       position: fixed;
       top: 0;
@@ -25,24 +38,33 @@
       right: 0;
       z-index: 1030;
       height: 56px;
-      background-color: #212529;
+      /* Gradient for a premium look */
+      background: linear-gradient(90deg, var(--primary-maroon) 0%, #B82548 100%);
+      box-shadow: var(--shadow-soft);
     }
 
     .navbar-brand {
-      font-weight: 600;
-      font-size: 20px;
+      font-weight: 700;
+      font-size: 22px;
+      color: var(--text-light) !important;
     }
 
+    .navbar-brand .bi-truck-front-fill {
+        color: var(--accent-gold); /* Gold icon on dark background */
+    }
+
+    /* --- Sidebar Styling --- */
     .sidebar {
       height: 100vh;
-      width: 240px;
+      width: 260px; /* Slightly wider sidebar */
       position: fixed;
       top: 56px;
       left: 0;
-      background-color: #1e1e2f;
+      background-color: var(--primary-maroon);
       overflow-y: auto;
-      box-shadow: 2px 0 5px rgba(0,0,0,0.1);
-      transition: transform 0.3s ease-in-out;
+      box-shadow: 4px 0 10px rgba(0,0,0,0.2);
+      transition: all 0.3s ease-in-out;
+      border-right: 1px solid #7c152e;
     }
 
     .sidebar.collapsed {
@@ -51,96 +73,141 @@
 
     .sidebar .logo-section {
       padding: 20px 0 15px;
-      border-bottom: 1px solid #343a40;
+      /* Border removed for cleaner look, replaced with slight bottom padding/shadow if needed */
       text-align: center;
+      background-color: #921A37; /* Slightly different shade for header */
     }
 
     .sidebar img {
-      width: 50px;
-      height: 50px;
+      width: 60px; /* Larger logo */
+      height: 60px;
       border-radius: 50%;
-      background-color: #fff;
-      padding: 4px;
+      border: 3px solid var(--accent-gold); /* Gold ring for premium feel */
+      padding: 0;
+      object-fit: cover;
     }
 
     .sidebar h6 {
-      font-size: 15px;
-      margin-top: 8px;
-      color: #ffc107;
+      font-size: 16px;
+      margin-top: 10px;
+      color: var(--text-light);
       font-weight: 600;
+      letter-spacing: 0.5px;
     }
 
     .sidebar h5 {
-      padding: 10px 20px 5px;
+      padding: 15px 20px 5px;
       font-size: 13px;
-      color: #adb5bd;
+      color: #e9ecef; /* Lighter gray for section headers */
       text-transform: uppercase;
-      margin-bottom: 4px;
+      margin-bottom: 0;
+      font-weight: 500;
+      letter-spacing: 1px;
     }
 
+    /* --- Sidebar List Items --- */
     .list-group-item {
-      font-size: 14px;
-      padding: 10px 18px;
+      font-size: 15px;
+      padding: 12px 20px;
       background-color: transparent;
-      color: #dee2e6;
-      transition: all 0.2s ease-in-out;
+      color: var(--text-light);
+      border: none;
+      transition: all 0.3s ease-in-out;
+      position: relative;
+    }
+
+    .list-group-item .bi {
+        margin-right: 12px;
+        font-size: 18px;
+        transition: transform 0.2s;
     }
 
     .list-group-item:hover {
-      background-color: #343a40;
-      color: #ffc107;
-      border-left: 4px solid #ffc107;
-      padding-left: 14px;
+      background-color: #B82548; /* Secondary Red on hover */
+      color: var(--text-light);
+      /* Subtle lift effect */
+      transform: translateX(5px);
     }
 
     .list-group-item.active {
-      background-color: #343a40 !important;
-      color: #ffc107 !important;
+      /* Stronger visual cue for active state */
+      background-color: var(--secondary-red) !important;
+      color: var(--text-light) !important;
       font-weight: 600;
-      border-left: 4px solid #ffc107;
-      padding-left: 14px;
+      box-shadow: inset 5px 0 0 var(--accent-gold); /* Gold indicator line */
     }
 
+    .list-group-item.active:hover {
+        background-color: #c73e4e !important;
+        transform: none; /* No shift on active hover */
+    }
+
+    /* --- Content Area --- */
     .content {
-      margin-left: 240px;
-      padding: 80px 30px 30px 30px;
+      margin-left: 260px; /* Must match sidebar width */
+      padding: 80px 40px 40px 40px; /* More padding */
+      min-height: calc(100vh - 56px);
+      background-color: var(--background-light);
+      transition: margin-left 0.3s ease-in-out;
+    }
+
+    /* --- General Component Styling --- */
+    .alert {
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      border-left: 5px solid;
     }
 
     .btn-outline-light {
-      border-radius: 20px;
+      border-color: var(--text-light);
+      color: var(--text-light);
+      border-radius: 4px; /* Slightly squarer for professional look */
       transition: 0.3s;
+      font-weight: 500;
     }
 
     .btn-outline-light:hover {
-      background-color: #ffc107;
-      color: #212529;
-      border-color: #ffc107;
+      background-color: var(--accent-gold);
+      color: var(--primary-maroon); /* Dark text on gold hover */
+      border-color: var(--accent-gold);
     }
 
-    .alert {
-      border-radius: 10px;
+    .nav-item.text-uppercase.small {
+        padding: 15px 20px 5px;
+        color: #e9ecef;
+        font-weight: 500;
+        letter-spacing: 1px;
     }
 
-    .text-warning {
-      font-weight: 600;
+    /* Global Icons on Sidebar (adjusting to dark background) */
+    .list-group-item .bi {
+        /* Default icon color for links in the sidebar */
+        color: var(--accent-gold) !important;
     }
 
-    .bi {
-      vertical-align: middle;
-      margin-right: 6px;
-    }
+    /* Specific icon colors (for visual differentiation in the sidebar, but better to keep one theme color) */
+    .list-group-item:nth-child(5) .bi { color: #f29c00 !important; } /* Fleet Master - slightly different gold */
+    .list-group-item:nth-child(6) .bi { color: #dc3545 !important; } /* Maintenance - Red */
+    .list-group-item:nth-child(7) .bi { color: #ffc107 !important; } /* Driver - Gold */
+    .list-group-item:nth-child(10) .bi { color: #43b174 !important; } /* Tyre Management - Green */
+    .list-group-item:nth-child(11) .bi { color: #f0ad4e !important; } /* Issue Management - Orange */
 
-    @media (max-width: 767.98px) {
+
+    /* --- Responsive Adjustments --- */
+    @media (max-width: 991.98px) {
+      .sidebar {
+        width: 240px;
+      }
       .content {
         margin-left: 0;
-        padding: 80px 15px 30px 15px;
+        padding: 80px 20px 30px 20px;
       }
-
-      .sidebar {
-        position: fixed;
-        top: 56px;
-        left: 0;
-        z-index: 1050;
+      .sidebar.d-none.d-md-block {
+        /* Overriding Bootstrap for the mobile toggle */
+        display: none !important;
+      }
+      .sidebar:not(.d-md-block) {
+        display: block !important;
       }
     }
   </style>
@@ -148,17 +215,16 @@
 
 <body>
 
-<!-- Top Navbar -->
 <nav class="navbar navbar-dark px-3">
   <button class="btn btn-sm btn-outline-light d-md-none me-2" id="toggleSidebar">
     <i class="bi bi-list"></i>
   </button>
-  <a class="navbar-brand text-warning" href="/dashboard">
+  <a class="navbar-brand" href="/dashboard">
     <i class="bi bi-truck-front-fill"></i> TMS Portal
   </a>
   <div class="ms-auto d-flex align-items-center">
     {% if session['user'] %}
-      <span class="text-white me-3"><i class="bi bi-person-circle"></i> {{ session['user'] }}</span>
+      <span class="text-light me-3"><i class="bi bi-person-circle me-1"></i> {{ session['user'] }}</span>
       <a href="/logout" class="btn btn-outline-light btn-sm"><i class="bi bi-box-arrow-right"></i> Logout</a>
     {% else %}
       <a href="/auth" class="btn btn-outline-light btn-sm">Login</a>
@@ -166,69 +232,79 @@
   </div>
 </nav>
 
-<!-- Sidebar -->
-<div class="sidebar d-none d-md-block" id="sidebarMenu">
+<div class="sidebar d-none d-lg-block" id="sidebarMenu">
   <div class="logo-section">
     <img src="/static/tms.jpg" alt="TMS Logo" />
-    <h6>TMS Dashboard</h6>
+    <h6>Welcome, {{ session['user'] or 'Guest' }}</h6>
   </div>
 
   <div class="list-group list-group-flush">
-    <li class="nav-item text-uppercase text-white-50 small mb-1">Main</li>
+    <li class="nav-item text-uppercase small mb-1">MAIN</li>
     <a href="/dashboard" class="list-group-item {% if request.path == '/dashboard' %}active{% endif %}">
-      <i class="bi bi-house-fill text-warning"></i> Dashboard
+      <i class="bi bi-house-fill"></i> Dashboard
     </a>
     <a href="/financial" class="list-group-item {% if request.path == '/financial' %}active{% endif %}">
-      <i class="bi bi-bar-chart-fill text-warning"></i> Financial Dashboard
+      <i class="bi bi-bar-chart-fill"></i> Financial Dashboard
     </a>
 
-    <h5>Fleet Management</h5>
+    <h5>FLEET MANAGEMENT</h5>
     <a href="/fleet_master" class="list-group-item {% if request.path == '/fleet_master' %}active{% endif %}">
-      <i class="bi bi-truck text-success"></i> Fleet Master
+      <i class="bi bi-truck"></i> Fleet Master
     </a>
     <a href="/vehicle_maintenance" class="list-group-item {% if request.path == '/vehicle_maintenance' %}active{% endif %}">
-      <i class="bi bi-car-front-fill text-danger"></i> Vehicle Maintenance
+      <i class="bi bi-tools"></i> Vehicle Maintenance
     </a>
     <a href="/driver_master" class="list-group-item {% if request.path == '/driver_master' %}active{% endif %}">
-      <i class="bi bi-person-badge text-warning"></i> Driver Master
+      <i class="bi bi-person-badge"></i> Driver Master
     </a>
     <a href="/trip-history" class="list-group-item {% if request.path == '/trip-history' %}active{% endif %}">
-      <i class="bi bi-clock-history text-secondary"></i> Trip History
+      <i class="bi bi-clock-history"></i> Trip History
     </a>
     <a href="/tyre-management" class="list-group-item {% if request.path == '/tyre-management' %}active{% endif %}">
-      <i class="bi bi-circle-half text-success"></i> Tyre Management
+      <i class="bi bi-circle-half"></i> Tyre Management
     </a>
     <a href="/issue-management" class="list-group-item {% if request.path == '/issue-management' %}active{% endif %}">
-      <i class="bi bi-exclamation-diamond text-warning"></i> Issue Management
+      <i class="bi bi-exclamation-diamond"></i> Issue Management
     </a>
 
-    <h5>Transport Management</h5>
+    <h5>TRANSPORT MANAGEMENT</h5>
     <a href="/def" class="list-group-item {% if request.path == '/def' %}active{% endif %}">
-      <i class="bi bi-file-earmark-text-fill text-primary"></i> DEF
+      <i class="bi bi-file-earmark-text-fill"></i> DEF
     </a>
     <a href="/orders" class="list-group-item {% if request.path == '/orders' %}active{% endif %}">
-      <i class="bi bi-box-seam text-primary"></i> Orders
+      <i class="bi bi-box-seam"></i> Orders
     </a>
     <a href="/optimize" class="list-group-item {% if request.path == '/optimize' %}active{% endif %}">
-      <i class="bi bi-graph-up-arrow text-info"></i> Optimize Route
+      <i class="bi bi-graph-up-arrow"></i> Optimize Route
     </a>
     <a href="/tracking" class="list-group-item {% if request.path == '/tracking' %}active{% endif %}">
-      <i class="bi bi-geo-alt-fill text-info"></i> GPS Tracking
+      <i class="bi bi-geo-alt-fill"></i> GPS Tracking
     </a>
 
+    <hr class="text-white mx-3 my-2 opacity-50">
 
     <a href="/download-report" class="list-group-item {% if request.path == '/download-report' %}active{% endif %}">
-      <i class="bi bi-download text-success"></i> Download Report
+      <i class="bi bi-download"></i> Download Report
     </a>
   </div>
 </div>
 
-<!-- Page Content -->
 <div class="content">
+  <div class="row">
+      <div class="col-12">
+          <h2 class="mb-4 text-dark" style="font-weight: 600;">Welcome to the TMS Portal!</h2>
+          <div class="card shadow-sm border-0 mb-4">
+<!--              <div class="card-body">-->
+<!--                  <h5 class="card-title text-secondary">Dashboard Overview</h5>-->
+<!--                  <p class="card-text">Your central hub for fleet, finance, and logistics operations. Use the sidebar to navigate all modules.</p>-->
+<!--&lt;!&ndash;                  <a href="/orders" class="btn btn-sm" style="background-color: var(&#45;&#45;secondary-red); color: var(&#45;&#45;text-light);">View Orders</a>&ndash;&gt;-->
+<!--              </div>-->
+          </div>
+      </div>
+  </div>
   {% block content %}{% endblock %}
 </div>
 
-<!-- Flash Messages -->
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% if messages %}
     <div class="container mt-3">
@@ -242,16 +318,30 @@
   {% endif %}
 {% endwith %}
 
-<!-- Bootstrap JS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
-<!-- Sidebar Toggle Script -->
 <script>
   const toggleBtn = document.getElementById('toggleSidebar');
   const sidebar = document.getElementById('sidebarMenu');
 
   toggleBtn?.addEventListener('click', () => {
+    // Toggling 'd-none' for small screens
     sidebar.classList.toggle('d-none');
+
+    // Optional: Add a smooth overlay effect when sidebar is open on mobile
+    if (!sidebar.classList.contains('d-none')) {
+        // Since we changed d-md-block to d-lg-block, d-none is enough on mobile
+        // For professional use, one might add an overlay div here for mobile view
+    }
+  });
+
+  // Automatically adjust content margin for desktop view
+  window.addEventListener('resize', () => {
+    if (window.innerWidth >= 992) {
+        document.querySelector('.content').style.marginLeft = '260px';
+    } else {
+        document.querySelector('.content').style.marginLeft = '0';
+    }
   });
 </script>
 
