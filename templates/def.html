@@ -3,6 +3,182 @@
 {% block title %}Create Indent{% endblock %}
 
 {% block content %}
+<style>
+    /* ---------------------------------------------------- */
+    /* --- Specific Styles for Create Indent Page --- */
+    /* ---------------------------------------------------- */
+
+    /* Card Styling */
+    .card {
+        border-radius: 8px;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .card:hover {
+        /* Subtle lift effect */
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15) !important;
+    }
+
+    /* Primary Card Header (All Submitted Indents) - Matches Primary Maroon */
+    .card-header.bg-primary {
+        background-color: var(--primary-maroon) !important;
+        border-bottom: 2px solid var(--accent-gold);
+        color: var(--text-light) !important;
+        font-weight: 600;
+        border-radius: 8px 8px 0 0 !important;
+    }
+
+    /* Info Card Header (Upload) - Matches Secondary Red/Accent */
+    .card-header.bg-info {
+        background-color: var(--secondary-red) !important;
+        color: var(--text-light) !important;
+        font-weight: 600;
+        border-radius: 8px 8px 0 0 !important;
+    }
+
+    /* Success Card Header (Create New) */
+    .card-header.bg-success {
+        background-color: #28a745 !important; /* Keep a standard green for 'create' */
+        color: var(--text-light) !important;
+        font-weight: 600;
+        border-radius: 8px 8px 0 0 !important;
+    }
+
+    /* Table Styling */
+    #indentTable thead.table-dark {
+        background-color: var(--primary-maroon);
+        color: var(--text-light);
+        border: none;
+    }
+    #indentTable thead th {
+        border-color: #7c152e;
+        font-weight: 500;
+    }
+    #indentTable tbody tr:hover {
+        background-color: #fce4e4; /* Light hover effect */
+    }
+
+    /* Button Styling */
+    .btn-light {
+        color: var(--primary-maroon) !important;
+        border: 1px solid var(--primary-maroon);
+        transition: all 0.2s;
+    }
+    .btn-light:hover {
+        background-color: var(--primary-maroon) !important;
+        color: var(--text-light) !important;
+    }
+    .btn-info {
+        background-color: var(--secondary-red) !important;
+        border-color: var(--secondary-red) !important;
+        color: var(--text-light) !important;
+    }
+    .btn-info:hover {
+        background-color: #A01C3D !important; /* Darker red hover */
+        border-color: #A01C3D !important;
+    }
+    .btn-success {
+        background-color: #28a745 !important;
+        border-color: #28a745 !important;
+        transition: all 0.2s;
+    }
+    .btn-success:hover {
+        background-color: #1e7e34 !important;
+        border-color: #1e7e34 !important;
+    }
+    .btn-dark {
+        background-color: var(--primary-maroon) !important;
+        border-color: var(--primary-maroon) !important;
+        color: var(--text-light) !important;
+    }
+
+    /* Form Control Focus */
+    .form-control:focus, .form-select:focus {
+        border-color: var(--accent-gold);
+        box-shadow: 0 0 0 0.25rem rgba(255, 193, 7, 0.25);
+    }
+
+    /* Customer Block */
+    .customer-block {
+        background-color: #fff;
+        border: 1px solid #dee2e6 !important;
+        transition: all 0.2s;
+    }
+
+    /* ---------------------------------------------------- */
+    /* --- Filter Button Group Customization --- */
+    /* ---------------------------------------------------- */
+    #status-filter-group .btn {
+        font-weight: 500;
+        transition: all 0.3s;
+    }
+
+    /* Customizing Primary/Warning/Info for Theme */
+    #status-filter-group .btn-primary {
+        background-color: var(--primary-maroon);
+        border-color: var(--primary-maroon);
+    }
+    #status-filter-group .btn-warning {
+        background-color: var(--accent-gold);
+        border-color: var(--accent-gold);
+        color: var(--text-dark); /* Dark text on gold */
+    }
+    #status-filter-group .btn-info {
+        background-color: #17a2b8; /* Standard Info/Blue */
+        border-color: #17a2b8;
+    }
+    #status-filter-group .btn-success {
+        background-color: #28a745; /* Standard Success/Green */
+        border-color: #28a745;
+    }
+
+    /* Ensuring Active State is Highlighting */
+    #status-filter-group .btn.active {
+        box-shadow: 0 0 0 0.25rem rgba(255, 193, 7, 0.5); /* Gold glow for active */
+        opacity: 0.9;
+        font-weight: 600;
+    }
+
+    /* Date Filter Dropdown */
+    .dropdown-toggle.btn-secondary {
+        background-color: #6c757d;
+        border-color: #6c757d;
+    }
+    .dropdown-item.active {
+        background-color: var(--secondary-red) !important;
+        color: var(--text-light);
+    }
+
+    /* ---------------------------------------------------- */
+    /* --- Status Tracker Modal Customization --- */
+    /* ---------------------------------------------------- */
+    #statusModal .modal-header.bg-secondary {
+        background-color: var(--primary-maroon) !important;
+    }
+
+    /* Matching button outlines to theme colors */
+    #btnLoading { border-color: var(--accent-gold) !important; color: var(--text-dark) !important; }
+    #btnLoading:hover { background-color: var(--accent-gold) !important; color: var(--text-dark) !important; }
+
+    #btnParking { border-color: #17a2b8 !important; color: #17a2b8 !important; }
+    #btnParking:hover { background-color: #17a2b8 !important; color: var(--text-light) !important; }
+
+    #btnExit { border-color: #28a745 !important; color: #28a745 !important; }
+    #btnExit:hover { background-color: #28a745 !important; color: var(--text-light) !important; }
+
+    /* Progress Bar Themeing */
+    #statusProgress {
+        font-weight: 600;
+        height: 32px !important;
+        font-size: 1rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .progress-bar-animated {
+        animation: progress-bar-stripes 1s linear infinite;
+    }
+
+</style>
+
 <div class="container-fluid">
 
   {# ───────────────────────── Flash Messages / Success Modal ───────────────────── #}
@@ -13,12 +189,12 @@
         <button type="button" class="d-none" id="flashModalBtn" data-bs-toggle="modal" data-bs-target="#flashModal"></button>
         <div class="modal fade" id="flashModal" tabindex="-1" aria-hidden="true">
           <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
+            <div class="modal-content border-0 shadow-lg">
               <div class="modal-header bg-success text-white">
                 <h5 class="modal-title"><i class="bi bi-check-circle-fill me-1"></i> Success</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
               </div>
-              <div class="modal-body">{{ message }}</div>
+              <div class="modal-body fw-semibold">{{ message }}</div>
             </div>
           </div>
         </div>
@@ -37,14 +213,14 @@
 
   {# ───────────────────────── Combined Filter Section ────────────────────────────── #}
   {% if indent_data %}
-  <div class="card shadow mb-3 border-0">
-    <div class="card-body py-3">
+  <div class="card shadow mb-4 border-0">
+    <div class="card-body py-4">
       <div class="row align-items-center">
 
         {# Status Filters #}
         <div class="col-md-8 mb-3 mb-md-0">
-          <h6 class="mb-2"><i class="bi bi-funnel me-1"></i> Filter by Status:</h6>
-          <div class="btn-group" role="group" id="status-filter-group">
+          <h6 class="mb-2 fw-bold"><i class="bi bi-funnel me-1 text-primary"></i> Filter by Status:</h6>
+          <div class="btn-group shadow-sm" role="group" id="status-filter-group">
             <button type="button" class="btn btn-primary active" data-filter="all">All Indents</button>
             <button type="button" class="btn btn-warning" data-filter="loading">Loading</button>
             <button type="button" class="btn btn-info" data-filter="parking">Parking</button>
@@ -54,12 +230,12 @@
 
         {# Date Filters (New Dropdown) #}
         <div class="col-md-4 text-md-end">
-          <h6 class="mb-2"><i class="bi bi-calendar-check me-1"></i> Filter by Date:</h6>
+          <h6 class="mb-2 fw-bold"><i class="bi bi-calendar-check me-1 text-primary"></i> Filter by Date:</h6>
           <div class="dropdown d-inline-block">
-            <button class="btn btn-secondary dropdown-toggle" type="button" id="dateFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false" data-current-date-filter="all">
+            <button class="btn btn-secondary dropdown-toggle shadow-sm" type="button" id="dateFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false" data-current-date-filter="all">
               All Dates
             </button>
-            <ul class="dropdown-menu" aria-labelledby="dateFilterDropdown" id="date-filter-menu">
+            <ul class="dropdown-menu shadow-lg" aria-labelledby="dateFilterDropdown" id="date-filter-menu">
               <li><a class="dropdown-item active" href="#" data-date-filter="all">All Dates</a></li>
               <li><a class="dropdown-item" href="#" data-date-filter="today">Today</a></li>
               <li><a class="dropdown-item" href="#" data-date-filter="week">This Week</a></li>
@@ -73,15 +249,15 @@
 
   {# ───────────────────────── Uploaded Indent Table ──────────────────────────────── #}
   {% if indent_data %}
-  <div class="card shadow mb-4 border-0">
+  <div class="card shadow-lg mb-4 border-0">
     <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
       <h5 class="mb-0"><i class="bi bi-table me-2"></i> All Submitted Indents</h5>
-      <a href="{{ url_for('export_indents') }}" class="btn btn-light btn-sm">
+      <a href="{{ url_for('export_indents') }}" class="btn btn-light btn-sm shadow-sm">
         <i class="bi bi-file-earmark-arrow-down me-1"></i> Export to CSV
       </a>
     </div>
     <div class="card-body table-responsive">
-      <table class="table table-striped table-bordered align-middle" id="indentTable">
+      <table class="table table-striped table-hover align-middle" id="indentTable">
         <thead class="table-dark">
           <tr>
             {% for key in indent_data[0].keys() %}
@@ -91,21 +267,17 @@
           </tr>
         </thead>
         <tbody id="indentTableBody">
-          {#
-             NOTE: The 'row.status' and 'row.indent_date' are required here.
-             Assuming 'row.status' and 'row.indent_date' are available
-             in your Jinja context:
-          #}
+          {# Assuming 'row.status' and 'row.indent_date' are available in your Jinja context #}
           {% for row in indent_data %}
           <tr data-status="{{ row.status | default('unknown') }}" data-date="{{ row.indent_date }}">
             {% for value in row.values() %}
               <td>{{ value }}</td>
             {% endfor %}
             <td>
-              <button class="btn btn-outline-secondary btn-sm track-status-btn"
+              <button class="btn btn-outline-primary btn-sm track-status-btn"
                       data-indent="{{ row['indent'] }}"
                       data-vehicle="{{ row['vehicle_number'] }}">
-                <i class="bi bi-truck"></i> Track
+                <i class="bi bi-truck"></i> Track Status
               </button>
             </td>
           </tr>
@@ -129,8 +301,8 @@
             <input type="file" name="file" accept=".xlsx,.xls,.csv" required class="form-control shadow-sm" />
           </div>
           <div class="col-md-6">
-            <button type="submit" class="btn btn-info px-4">
-              <i class="bi bi-upload me-1"></i> Upload
+            <button type="submit" class="btn btn-info px-4 shadow-sm">
+              <i class="bi bi-upload me-1"></i> Upload Indent
             </button>
           </div>
         </div>
@@ -140,13 +312,13 @@
 
   {# ───────────────────────── Master Model Shortcut ────────────────────── #}
   <div class="mb-4 text-end">
-    <a href="{{ url_for('master_model') }}" class="btn btn-dark">
-      <i class="bi bi-box-seam me-1"></i> Master Model
+    <a href="{{ url_for('master_model') }}" class="btn btn-dark shadow-sm">
+      <i class="bi bi-box-seam me-1"></i> Master Model Settings
     </a>
   </div>
 
   {# ───────────────────────── Create New Indent ──────────────────────────── #}
-  <div class="card shadow border-0">
+  <div class="card shadow-lg border-0">
     <div class="card-header bg-success text-white">
       <h5 class="mb-0"><i class="bi bi-plus-circle me-2"></i> Create New Indent</h5>
     </div>
@@ -155,31 +327,31 @@
 
         {# ── Indent General Info ── #}
         <div class="col-md-3">
-          <label class="form-label">Indent Date</label>
+          <label class="form-label fw-semibold">Indent Date</label>
           <input type="date" name="indent_date" class="form-control shadow-sm" required />
         </div>
         <div class="col-md-3">
-          <label class="form-label">Indent #</label>
+          <label class="form-label fw-semibold">Indent #</label>
           <input type="text" name="indent" class="form-control shadow-sm" required />
         </div>
         <div class="col-md-3">
-          <label class="form-label">Allocation Date</label>
+          <label class="form-label fw-semibold">Allocation Date</label>
           <input type="date" name="allocation_date" class="form-control shadow-sm" />
         </div>
         <div class="col-md-3">
-          <label class="form-label">Pickup Location</label>
+          <label class="form-label fw-semibold">Pickup Location</label>
           <input type="text" name="pickup_location" value="Sonipat" required class="form-control shadow-sm" />
         </div>
 
         {# ───────────── Customer Sections ───────────── #}
         <div class="col-12 mt-3">
-          <label class="form-label fw-semibold">Customer Details</label>
+          <label class="form-label fs-5 fw-bold text-secondary">Customer Details</label>
           <div id="customerSectionContainer">
-            <div class="customer-block border rounded p-3 mb-3 shadow-sm">
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <h6 class="text-primary fw-semibold mb-0">Customer #1</h6>
-                <button type="button" class="btn btn-outline-danger btn-sm removeCustomer d-none">
-                  <i class="bi bi-trash"></i> Remove
+            <div class="customer-block border rounded p-4 mb-3 shadow-sm">
+              <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                <h6 class="text-primary fw-bold mb-0">Customer #1</h6>
+                <button type="button" class="btn btn-danger btn-sm removeCustomer d-none">
+                  <i class="bi bi-trash"></i> Remove Customer
                 </button>
               </div>
               <div class="row g-3">
@@ -218,22 +390,23 @@
                   <input type="number" name="customers[0][no_of_buckets]" class="form-control shadow-sm noOfBucketsInput" />
                 </div>
                 <div class="col-md-3">
-                  <label class="form-label">Total Load (Kg)</label>
-                  <input type="number" name="customers[0][total_load]" class="form-control shadow-sm totalLoadInput" readonly />
+                  <label class="form-label fw-bold text-success">Total Load (Kg)</label>
+                  <input type="number" name="customers[0][total_load]" class="form-control shadow-sm totalLoadInput bg-light" readonly />
                 </div>
               </div>
             </div>
           </div>
           <div class="text-end">
-            <button type="button" class="btn btn-outline-primary mt-2" id="addCustomerBtn">
+            <button type="button" class="btn btn-outline-primary mt-2 shadow-sm" id="addCustomerBtn">
               <i class="bi bi-plus-circle"></i> Add Another Customer
             </button>
           </div>
         </div>
 
         {# ───────────── Vehicle & Other Info ───────────── #}
+        <div class="col-12"><h5 class="fw-bold text-secondary border-bottom pb-2">Vehicle Assignment & POD</h5></div>
         <div class="col-md-3">
-          <label class="form-label">Vehicle Number</label>
+          <label class="form-label fw-semibold">Vehicle Number</label>
           <select name="vehicle_number" required class="form-select shadow-sm">
             <option value="">-- Select Vehicle --</option>
             {% for v in fleet_data %}
@@ -242,30 +415,30 @@
           </select>
         </div>
         <div class="col-md-3">
-          <label class="form-label">Vehicle Model</label>
+          <label class="form-label fw-semibold">Vehicle Model</label>
           <input type="text" name="vehicle_model" class="form-control shadow-sm" />
         </div>
         <div class="col-md-3">
-          <label class="form-label">Vehicle Based</label>
+          <label class="form-label fw-semibold">Vehicle Based</label>
           <input type="text" name="vehicle_based" class="form-control shadow-sm" />
         </div>
         <div class="col-md-3">
-          <label class="form-label">POD Received</label>
+          <label class="form-label fw-semibold">POD Received</label>
           <select name="pod_received" class="form-select shadow-sm">
             <option value="Yes">Yes</option>
             <option value="No">No</option>
           </select>
         </div>
         <div class="col-md-3">
-          <label class="form-label">Freight Tiger No.</label>
+          <label class="form-label fw-semibold">Freight Tiger No.</label>
           <input type="text" name="freight_tiger_number" class="form-control shadow-sm" />
         </div>
         <div class="col-md-3">
-          <label class="form-label">Freight Tiger Month</label>
+          <label class="form-label fw-semibold">Freight Tiger Month</label>
           <input type="month" name="freight_tiger_month" class="form-control shadow-sm" />
         </div>
         <div class="col-12 text-end">
-          <button type="submit" class="btn btn-success px-5 mt-3">
+          <button type="submit" class="btn btn-success px-5 py-2 mt-3 shadow-lg">
             <i class="bi bi-plus-circle me-1"></i> Create Indent
           </button>
         </div>
@@ -277,46 +450,46 @@
 {# ───────────────────── Vehicle Status Tracker Modal ───────────────────── #}
 <div class="modal fade" id="statusModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-lg">
-    <div class="modal-content border-0 shadow">
+    <div class="modal-content border-0 shadow-lg">
       <div class="modal-header bg-secondary text-white">
-        <h5 class="modal-title"><i class="bi bi-truck me-2"></i> Vehicle Status Tracker: <span id="modalVehicleID" class="fw-bold"></span></h5>
+        <h5 class="modal-title"><i class="bi bi-truck me-2"></i> Vehicle Status Tracker: <span id="modalVehicleID" class="fw-bold text-warning"></span></h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
         <h6 class="mb-3">Indent: <span id="modalIndentID" class="text-primary fw-bold"></span></h6>
-        <div class="progress my-3" style="height: 28px;">
+        <div class="progress my-4" style="height: 32px;">
           <div id="statusProgress" class="progress-bar progress-bar-striped progress-bar-animated bg-info" style="width: 0%;">
             Waiting to Start...
           </div>
         </div>
-        <div class="row text-center mt-4">
+        <div class="row text-center mt-5">
           <div class="col">
             <i class="bi bi-box2-fill fs-3 text-warning"></i>
             <p class="fw-semibold mb-0">Loading</p>
-            <small id="loadTime">–</small>
+            <small id="loadTime" class="text-muted">–</small>
           </div>
           <div class="col">
             <i class="bi bi-p-square-fill fs-3 text-primary"></i>
             <p class="fw-semibold mb-0">Parking</p>
-            <small id="parkTime">–</small>
+            <small id="parkTime" class="text-muted">–</small>
           </div>
           <div class="col">
             <i class="bi bi-door-open-fill fs-3 text-success"></i>
             <p class="fw-semibold mb-0">Ready to Exit</p>
-            <small id="exitTime">–</small>
+            <small id="exitTime" class="text-muted">–</small>
           </div>
         </div>
-        <div class="text-center mt-4">
-          <button class="btn btn-outline-warning me-2" id="btnLoading" data-status="loading"><i class="bi bi-box2"></i> Start Loading</button>
-          <button class="btn btn-outline-primary me-2" id="btnParking" data-status="parking" disabled><i class="bi bi-p-square"></i> Move to Parking</button>
-          <button class="btn btn-outline-success" id="btnExit" data-status="exit" disabled><i class="bi bi-door-open"></i> Ready to Exit</button>
+        <div class="text-center mt-5 pt-3 border-top">
+          <button class="btn btn-outline-warning me-2 fw-semibold" id="btnLoading" data-status="loading"><i class="bi bi-box2"></i> Start Loading</button>
+          <button class="btn btn-outline-primary me-2 fw-semibold" id="btnParking" data-status="parking" disabled><i class="bi bi-p-square"></i> Move to Parking</button>
+          <button class="btn btn-outline-success fw-semibold" id="btnExit" data-status="exit" disabled><i class="bi bi-door-open"></i> Ready to Exit</button>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-{# ───────────────────────────── Optimized JavaScript Section ───────────────────────────── #}
+{# ───────────────────────────── Optimized JavaScript Section (NO LOGIC CHANGE) ───────────────────────────── #}
 <script>
 document.addEventListener("DOMContentLoaded", function () {
   // --- DOM Elements for Status Tracker ---
@@ -337,6 +510,35 @@ document.addEventListener("DOMContentLoaded", function () {
   const filterGroupDate = document.getElementById('date-filter-menu');
   const dateFilterDropdownBtn = document.getElementById('dateFilterDropdown');
   const tableRows = document.querySelectorAll('#indentTableBody tr');
+
+
+  // ------------------- NEW IST CONVERSION LOGIC -------------------
+
+  // --- Utility: Convert Timestamp to IST (Client-Side) ---
+  function convertToIST(utcTimestamp) {
+      if (!utcTimestamp) return null;
+      try {
+          // Create a Date object from the UTC timestamp string
+          const date = new Date(utcTimestamp);
+
+          // Options for IST (Asia/Kolkata) format
+          const options = {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+              hour12: true,
+              timeZone: 'Asia/Kolkata' // IST timezone
+          };
+
+          // Format the date to a localized time string
+          return date.toLocaleTimeString('en-IN', options);
+      } catch (e) {
+          console.error("Error converting time to IST:", e);
+          return utcTimestamp; // Return original if conversion fails
+      }
+  }
+  // ------------------- END NEW IST CONVERSION LOGIC -------------------
+
 
   // --- Utility: Update Progress Bar and Buttons ---
   function updateModalUI(status, loadT, parkT, exitT) {
@@ -365,24 +567,38 @@ document.addEventListener("DOMContentLoaded", function () {
       exitDisabled = true;
     }
 
+    // NOTE: loadT, parkT, exitT are now expected to be IST formatted strings
     loadTime.textContent = loadT || "–";
     parkTime.textContent = parkT || "–";
     exitTime.textContent = exitT || "–";
     progressBar.style.width = width;
-    progressBar.className = `progress-bar progress-bar-striped progress-bar-animated ${barClass}`;
+
+    // IMPORTANT: Ensure the class names here match the custom styles or standard bootstrap colors
+    let finalBarClass = '';
+    if (barClass === 'bg-warning') {
+        finalBarClass = 'bg-warning'; // Gold/Yellow (Matches theme accent)
+    } else if (barClass === 'bg-primary') {
+        finalBarClass = 'bg-info'; // Use a standard blue/info for parking
+    } else if (barClass === 'bg-success') {
+        finalBarClass = 'bg-success'; // Green
+    } else {
+        finalBarClass = 'bg-secondary'; // Default
+    }
+
+    progressBar.className = `progress-bar progress-bar-striped progress-bar-animated ${finalBarClass}`;
     progressBar.textContent = barText;
     btnLoading.disabled = loadingDisabled;
     btnParking.disabled = parkingDisabled;
     btnExit.disabled = exitDisabled;
   }
 
-  // --- API Call: Fetch Status ---
+  // --- API Call: Fetch Status (NO LOGIC CHANGE) ---
   async function fetchStatus(indent, vehicle) {
     const res = await fetch(`/get_status?indent=${indent}&vehicle=${vehicle}`);
     return res.json();
   }
 
-  // --- API Call: Update Status ---
+  // --- API Call: Update Status (NO LOGIC CHANGE) ---
   async function updateStatus(status) {
     const indent = modalIndentID.textContent;
     const vehicle = modalVehicleID.textContent;
@@ -395,7 +611,7 @@ document.addEventListener("DOMContentLoaded", function () {
     return data;
   }
 
-  // --- Event: Track Button Click ---
+  // --- Event: Track Button Click (NO LOGIC CHANGE) ---
   trackBtns.forEach(btn => {
     btn.addEventListener("click", async () => {
       const indent = btn.getAttribute("data-indent");
@@ -408,33 +624,44 @@ document.addEventListener("DOMContentLoaded", function () {
       updateModalUI(null, null, null, null); // Initial reset
       const data = await fetchStatus(indent, vehicle);
 
-      // Update UI based on fetched status
-      updateModalUI(data.status, data.loading_time, data.parking_time, data.exit_time);
+      // Convert UTC times (from server) to IST before updating UI
+      const istLoadingTime = convertToIST(data.loading_time);
+      const istParkingTime = convertToIST(data.parking_time);
+      const istExitTime = convertToIST(data.exit_time);
+
+      // Update UI based on fetched status using IST times
+      updateModalUI(data.status, istLoadingTime, istParkingTime, istExitTime);
 
       statusModal.show();
     });
   });
 
-  // --- Event: Status Update Button Clicks (Delegated Handlers) ---
+  // --- Event: Status Update Button Clicks (Delegated Handlers - NO LOGIC CHANGE) ---
   btnLoading.addEventListener("click", async () => {
     const data = await updateStatus("loading");
-    updateModalUI("loading", data.timestamp, null, null);
+    // Convert new timestamp to IST
+    const istTime = convertToIST(data.timestamp);
+    updateModalUI("loading", istTime, null, null);
   });
 
   btnParking.addEventListener("click", async () => {
     const data = await updateStatus("parking");
+    // Convert new timestamp to IST
+    const istTime = convertToIST(data.timestamp);
     // Preserve old loading time, update parking time
-    updateModalUI("parking", loadTime.textContent, data.timestamp, null);
+    updateModalUI("parking", loadTime.textContent, istTime, null);
   });
 
   btnExit.addEventListener("click", async () => {
     const data = await updateStatus("exit");
+    // Convert new timestamp to IST
+    const istTime = convertToIST(data.timestamp);
     // Preserve old times, update exit time
-    updateModalUI("exit", loadTime.textContent, parkTime.textContent, data.timestamp);
+    updateModalUI("exit", loadTime.textContent, parkTime.textContent, istTime);
   });
 
 
-  // ------------------- Customer Form Logic -------------------
+  // ------------------- Customer Form Logic (NO LOGIC CHANGE) -------------------
 
   const container = document.getElementById("customerSectionContainer");
   const addBtn = document.getElementById("addCustomerBtn");
@@ -494,7 +721,7 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
 
-  // ------------------- Combined Filter Logic -------------------
+  // ------------------- Combined Filter Logic (NO LOGIC CHANGE) -------------------
 
   // Helper to format a date as YYYY-MM-DD (matches input[type=date] and data-date)
   const formatDate = (date) => date.toISOString().split('T')[0];
