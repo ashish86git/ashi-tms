@@ -65,13 +65,22 @@
       box-shadow: 4px 0 10px rgba(0,0,0,0.2);
       transition: all 0.3s ease-in-out;
       border-right: 1px solid #7c152e;
+      /* For Mobile, Sidebar must be hidden by default using transform */
+      transform: translateX(-260px);
     }
 
-    .sidebar.collapsed {
-      transform: translateX(-100%);
+    /* Sidebar should only be permanently visible on large screens (lg) */
+    @media (min-width: 992px) {
+        .sidebar {
+            transform: translateX(0);
+        }
     }
 
-    /* ✅ MODIFIED: .logo-section को आयताकार बनाने के लिए padding बढ़ाया गया */
+    /* Class to show sidebar on mobile (toggled by JS) */
+    .sidebar.show {
+        transform: translateX(0);
+    }
+
     .sidebar .logo-section {
       padding: 15px 5px 15px;
       text-align: center;
@@ -79,7 +88,6 @@
       box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
     }
 
-    /* ✅ MODIFIED: लोगो का साइज़ बढ़ाया गया और आयताकार (rectangle) बनाया गया */
     .sidebar img {
       width: 120px; /* चौड़ाई 150px से कम करके 120px की गई */
       height: 80px; /* ऊँचाई को चौड़ाई से कम रखा गया ताकि आयताकार दिखे */
@@ -154,11 +162,19 @@
 
     /* --- Content Area --- */
     .content {
-      margin-left: 260px; /* Must match sidebar width */
-      padding: 80px 40px 40px 40px; /* More padding */
+      margin-left: 0; /* Default to 0 for mobile */
+      padding: 80px 20px 30px 20px; /* Reduced padding for mobile */
       min-height: calc(100vh - 56px);
       background-color: var(--background-light);
       transition: margin-left 0.3s ease-in-out;
+    }
+
+    /* Content margin for Desktop/Large Screens (lg) */
+    @media (min-width: 992px) {
+        .content {
+            margin-left: 260px; /* Must match sidebar width */
+            padding: 80px 40px 40px 40px; /* More padding for desktop */
+        }
     }
 
     /* --- General Component Styling --- */
@@ -203,21 +219,12 @@
     .list-group-item:nth-child(11) .bi { color: #f0ad4e !important; } /* Issue Management - Orange */
 
 
-    /* --- Responsive Adjustments --- */
+    /* --- Responsive Adjustments (Simplified for better mobile control) --- */
     @media (max-width: 991.98px) {
+      /* Sidebar is controlled by 'transform' and 'show' class now, not d-none/d-md-block */
       .sidebar {
-        width: 240px;
-      }
-      .content {
-        margin-left: 0;
-        padding: 80px 20px 30px 20px;
-      }
-      .sidebar.d-none.d-md-block {
-        /* Overriding Bootstrap for the mobile toggle */
-        display: none !important;
-      }
-      .sidebar:not(.d-md-block) {
-        display: block !important;
+        /* Ensure it's fixed and on top of content when visible on mobile */
+        z-index: 1040;
       }
     }
   </style>
@@ -253,11 +260,14 @@
     .text-success { color: #28a745 !important; font-weight: 600; }
     .text-danger { color: #dc3545 !important; font-weight: 600; }
 
-    /* Card background color adjusted to use primary maroon for consistency (old code used hardcoded red) */
+    /* ✅ UPDATED: Card background color adjusted to use primary maroon for consistency */
     .card[style*="background: linear-gradient(135deg, #ffcccc 0%, #ff4d4f 100%)"] {
-        background: linear-gradient(135deg, #fcebeb 0%, var(--secondary-red) 100%) !important;
+        background: linear-gradient(135deg, #fcebeb 0%, var(--primary-maroon) 100%) !important; /* Changed end color to primary-maroon */
         color: var(--text-dark) !important;
     }
+    /* ✅ UPDATED: The inline style inside the Jinja loop must also be updated, changing #ff4d4f to var(--primary-maroon) */
+
+
     .revenue-bar.bg-danger {
         background-color: var(--primary-maroon) !important; /* Use primary color for bar */
     }
@@ -276,6 +286,21 @@
     @media (max-width: 576px) {
         .col-lg-2, .col-md-4 { flex: 0 0 100%; max-width: 100%; } /* One card per row on mobiles */
     }
+
+    /* Backdrop/Overlay for Mobile Menu */
+    .sidebar-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 1039; /* Between navbar and sidebar */
+        display: none;
+    }
+    .sidebar.show ~ .sidebar-backdrop {
+        display: block;
+    }
   </style>
 
 </head>
@@ -283,7 +308,7 @@
 <body>
 
 <nav class="navbar navbar-dark px-3">
-  <button class="btn btn-sm btn-outline-light d-md-none me-2" id="toggleSidebar">
+  <button class="btn btn-sm btn-outline-light d-lg-none me-2" id="toggleSidebar">
     <i class="bi bi-list"></i>
   </button>
   <a class="navbar-brand" href="/dashboard">
@@ -299,7 +324,7 @@
   </div>
 </nav>
 
-<div class="sidebar d-none d-lg-block" id="sidebarMenu">
+<div class="sidebar" id="sidebarMenu">
   <div class="logo-section">
     <img src="/static/logo.JPG" alt="TMS Logo" />
     <h6>Welcome, {{ session['user'] or 'Guest' }}</h6>
@@ -356,6 +381,9 @@
   </div>
 </div>
 
+<div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+
 <div class="content">
   <div class="row">
       <div class="col-12">
@@ -373,8 +401,7 @@
         {% for vehicle in top_vehicles %}
         <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
             <div class="card shadow-sm border-0 text-center p-3 h-100"
-                 style="background: linear-gradient(135deg, #ffcccc 0%, #ff4d4f 100%); color: #000;">
-                <div class="card-body">
+                 style="background: linear-gradient(135deg, #fcebeb 0%, var(--primary-maroon) 100%); color: var(--text-dark);"> <div class="card-body">
                     <h5 class="card-title text-truncate">{{ vehicle['Vehicle Name'] }}</h5>
                     <p class="card-text mb-1"><strong>ID:</strong> {{ vehicle['Vehicle ID'] }}</p>
                     <p class="card-text mb-1"><strong>Trips:</strong> {{ vehicle['Trips'] }}</p>
@@ -476,26 +503,48 @@
 <script>
   const toggleBtn = document.getElementById('toggleSidebar');
   const sidebar = document.getElementById('sidebarMenu');
+  const content = document.querySelector('.content');
+  const backdrop = document.getElementById('sidebarBackdrop');
 
-  toggleBtn?.addEventListener('click', () => {
-    // Toggling 'd-none' for small screens
-    sidebar.classList.toggle('d-none');
-
-    // Optional: Add a smooth overlay effect when sidebar is open on mobile
-    if (!sidebar.classList.contains('d-none')) {
-        // Since we changed d-md-block to d-lg-block, d-none is enough on mobile
-        // For professional use, one might add an overlay div here for mobile view
+  function toggleMenu() {
+    sidebar.classList.toggle('show');
+    // For mobile (width < 992px), prevent scrolling body when sidebar is open
+    if (window.innerWidth < 992) {
+        document.body.style.overflow = sidebar.classList.contains('show') ? 'hidden' : 'auto';
     }
+  }
+
+  toggleBtn?.addEventListener('click', toggleMenu);
+  backdrop?.addEventListener('click', toggleMenu); // Close sidebar when clicking backdrop
+
+  // Close sidebar if a link is clicked on mobile
+  const sidebarLinks = sidebar.querySelectorAll('.list-group-item');
+  sidebarLinks.forEach(link => {
+      link.addEventListener('click', () => {
+          if (window.innerWidth < 992) {
+              toggleMenu();
+          }
+      });
   });
 
-  // Automatically adjust content margin for desktop view
+  // Re-enable body scroll if user resizes window to desktop while sidebar is open
   window.addEventListener('resize', () => {
     if (window.innerWidth >= 992) {
-        document.querySelector('.content').style.marginLeft = '260px';
-    } else {
-        document.querySelector('.content').style.marginLeft = '0';
+        // Ensure desktop layout is correct
+        sidebar.classList.remove('show');
+        document.body.style.overflow = 'auto';
     }
   });
+
+  // Initial check to ensure correct layout on page load
+  window.addEventListener('load', () => {
+      if (window.innerWidth >= 992) {
+          content.style.marginLeft = '260px';
+      } else {
+          content.style.marginLeft = '0';
+      }
+  });
+
 </script>
 
 </body>
