@@ -779,6 +779,8 @@ def financial():
     vehicle_filter = request.args.get('vehicle_id', '').strip()
     driver_filter = request.args.get('driver_name', '').strip()
     export_csv = request.args.get('export', '').strip()
+    start_date = request.args.get('start_date', '').strip()
+    end_date = request.args.get('end_date', '').strip()
 
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -818,12 +820,19 @@ def financial():
     WHERE i.indent_date IS NOT NULL
     """
 
-    # Dynamic filters
+    # ─────────────── Dynamic filters ─────────────── #
     filters = []
     if vehicle_filter:
         filters.append(f"f.vehicle_id::text = '{vehicle_filter}'")
     if driver_filter:
         filters.append(f"dm.driver_name ILIKE '%{driver_filter}%'")
+    if start_date and end_date:
+        filters.append(f"i.indent_date BETWEEN '{start_date}' AND '{end_date}'")
+    elif start_date:
+        filters.append(f"i.indent_date >= '{start_date}'")
+    elif end_date:
+        filters.append(f"i.indent_date <= '{end_date}'")
+
     if filters:
         query += " AND " + " AND ".join(filters)
 
@@ -831,7 +840,7 @@ def financial():
     rows = cur.fetchall()
 
     # ─────────────── SUM of End-of-Range Distance per Vehicle ─────────────── #
-    cur.execute("""
+    range_query = """
         SELECT
             vehicle_number::text AS vehicle_id,
             SUM(
@@ -847,14 +856,28 @@ def financial():
             ) AS total_distance
         FROM indents
         WHERE range IS NOT NULL
-        GROUP BY vehicle_number
-    """)
+    """
+
+    # Apply same date filter for range aggregation
+    if start_date and end_date:
+        range_query += f" AND indent_date BETWEEN '{start_date}' AND '{end_date}'"
+    elif start_date:
+        range_query += f" AND indent_date >= '{start_date}'"
+    elif end_date:
+        range_query += f" AND indent_date <= '{end_date}'"
+
+    range_query += " GROUP BY vehicle_number"
+
+    cur.execute(range_query)
     range_data = {row['vehicle_id']: safe_decimal(row['total_distance']) for row in cur.fetchall()}
 
     cur.close()
     conn.close()
 
     # ─────────────── Calculations ─────────────── #
+    from collections import defaultdict
+    from decimal import Decimal
+
     routes = []
     summary = defaultdict(lambda: defaultdict(Decimal))
 
@@ -928,8 +951,11 @@ def financial():
         summary=summary,
         top_vehicles=top_vehicles,
         vehicle_filter=vehicle_filter,
-        driver_filter=driver_filter
+        driver_filter=driver_filter,
+        start_date=start_date,
+        end_date=end_date
     )
+
 
 # -------------------------- Unused/Placeholder Routes --------------------------
 # The following routes were in the original code but were incomplete or not
