@@ -10,7 +10,8 @@
         {% for vehicle in top_vehicles %}
         <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
             <div class="card shadow-sm border-0 text-center p-3 h-100"
-                 style="background: linear-gradient(135deg, #ffcccc 0%, #ff4d4f 100%); color: #000;">
+                style="background: linear-gradient(135deg, #FFAA33 0%, #ffe066 100%); color: #000;">
+
                 <div class="card-body">
                     <h5 class="card-title text-truncate">{{ vehicle['Vehicle Name'] }}</h5>
                     <p class="card-text mb-1"><strong>ID:</strong> {{ vehicle['Vehicle ID'] }}</p>
@@ -28,17 +29,29 @@
     </div>
 
     <!-- ----------------- Filter Form ----------------- -->
-    <form class="row g-3 mb-4 p-3 bg-light rounded shadow-sm" method="get">
+    <form class="row g-3 mb-4 p-3 bg-light rounded shadow-sm align-items-end" method="get">
+        <div class="col-md-2">
+            <label class="form-label fw-semibold">Start Date</label>
+            <input type="date" name="start_date" value="{{ start_date }}" class="form-control form-control-lg">
+        </div>
+        <div class="col-md-2">
+            <label class="form-label fw-semibold">End Date</label>
+            <input type="date" name="end_date" value="{{ end_date }}" class="form-control form-control-lg">
+        </div>
         <div class="col-md-3">
+            <label class="form-label fw-semibold">Vehicle ID</label>
             <input type="text" name="vehicle_id" placeholder="Vehicle ID" class="form-control form-control-lg" value="{{ vehicle_filter }}">
         </div>
         <div class="col-md-3">
+            <label class="form-label fw-semibold">Driver Name</label>
             <input type="text" name="driver_name" placeholder="Driver Name" class="form-control form-control-lg" value="{{ driver_filter }}">
         </div>
-        <div class="col-md-6 d-flex align-items-center">
-            <button type="submit" class="btn btn-danger me-2 btn-lg">Filter</button>
-            <a href="{{ url_for('financial') }}" class="btn btn-secondary me-2 btn-lg">Reset</a>
-            <a href="{{ url_for('financial', export='csv', vehicle_id=vehicle_filter, driver_name=driver_filter) }}" class="btn btn-success btn-lg">Export CSV</a>
+
+        <!-- Buttons -->
+        <div class="col-md-2 d-flex gap-2 justify-content-end flex-wrap">
+            <button type="submit" class="btn btn-danger btn-lg flex-fill">Filter</button>
+            <a href="{{ url_for('financial') }}" class="btn btn-secondary btn-lg flex-fill">Reset</a>
+            <a href="{{ url_for('financial', export='csv', start_date=start_date, end_date=end_date, vehicle_id=vehicle_filter, driver_name=driver_filter) }}" class="btn btn-success btn-lg flex-fill">CSV</a>
         </div>
     </form>
 
@@ -61,11 +74,11 @@
                     <th>No. Buckets</th>
                     <th>Load/Bucket</th>
                     <th>Total Load</th>
+                    <th>Total Distance Travelled (km)</th>
                     <th>Fuel Cost</th>
                     <th>Total Cost</th>
                     <th>Revenue</th>
                     <th>PnL</th>
-                    <th>Total Distance Travelled (km)</th>  <!-- ✅ NEW COLUMN -->
                 </tr>
             </thead>
             <tbody>
@@ -85,11 +98,11 @@
                     <td>{{ trip['No. Buckets'] }}</td>
                     <td>{{ trip['Load/Bucket'] }}</td>
                     <td>{{ trip['Total Load'] }}</td>
+                    <td>{{ trip['Total Distance Travelled'] | round(2) }}</td>
                     <td>{{ trip['Fuel Cost'] | round(2) }}</td>
                     <td>{{ trip['Total Cost'] | round(2) }}</td>
                     <td>{{ trip['Revenue'] | round(2) }}</td>
                     <td class="{% if trip['PnL'] >= 0 %}text-success{% else %}text-danger{% endif %}">{{ trip['PnL'] | round(2) }}</td>
-                    <td>{{ trip['Total Distance Travelled'] | round(2) }}</td> <!-- ✅ NEW DATA CELL -->
                 </tr>
                 {% endfor %}
             </tbody>
@@ -103,7 +116,7 @@
     h2 { font-weight: 700; }
 
     .table thead th {
-        background-color: FF0000 !important;
+        background-color: #B82548 !important;
         color: #fff;
         text-transform: uppercase;
         letter-spacing: 0.5px;
@@ -116,18 +129,18 @@
 
     /* Cards */
     .card { border-radius: 0.75rem; transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out; }
-    .card:hover { transform: translateY(-8px); box-shadow: 0 10px 25px rgba(255, 0, 0, 0.8); }
+    .card:hover { transform: translateY(-8px); box-shadow: 0 10px 25px rgb(0, 191, 255); }
     .revenue-bar { transition: width 0.5s ease; height: 6px; margin-top: 5px; border-radius:3px; }
 
     /* PnL colors */
     .text-success { color: #28a745 !important; font-weight: 600; }
     .text-danger { color: #dc3545 !important; font-weight: 600; }
 
+    /* Better button alignment */
+    .gap-2 { gap: 0.5rem !important; }
     @media (max-width: 992px) {
-        .col-lg-2 { flex: 0 0 50%; max-width: 50%; } /* Two cards per row on tablets */
-    }
-    @media (max-width: 576px) {
-        .col-lg-2, .col-md-4 { flex: 0 0 100%; max-width: 100%; } /* One card per row on mobiles */
+        .col-md-2.d-flex { flex-direction: column; }
+        .col-md-2.d-flex a, .col-md-2.d-flex button { width: 100%; }
     }
 </style>
 {% endblock %}
