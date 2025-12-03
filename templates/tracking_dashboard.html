@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Live Driver Tracking</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h2 {
+            margin-bottom: 10px;
+        }
+        table {
+            width: 100%;
+            background: white;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+        th {
+            background: #222;
+            color: white;
+        }
+        button {
+            padding: 6px 12px;
+            background: #007bff;
+            border: none;
+            color: white;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        iframe {
+            width: 100%;
+            height: 500px;
+            border: 2px solid #222;
+            border-radius: 6px;
+        }
+        #map-box {
+            display: none;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h2>🛰 Live Driver Tracking Dashboard</h2>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Indent ID</th>
+                <th>Driver</th>
+                <th>Vehicle</th>
+                <th>Location</th>
+                <th>Updated At</th>
+                <th>Track</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for t in trips %}
+            <tr>
+                <td>{{ t.indent_id }}</td>
+                <td>{{ t.driver_name }}</td>
+                <td>{{ t.vehicle_no }}</td>
+                <td>{{ t.location_url or "Not Shared" }}</td>
+                <td>{{ t.timestamp or "—" }}</td>
+
+                <td>
+                    <button onclick="loadMap('{{ t.indent_id }}')">Track</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+
+    <!-- Map Display Box -->
+    <div id="map-box">
+        <h3>Live Location</h3>
+        <iframe id="mapFrame" src=""></iframe>
+    </div>
+
+
+<script>
+function loadMap(indent_id) {
+
+    // API to fetch saved location
+    fetch(`/get_location/` + indent_id)
+        .then(res => res.json())
+        .then(data => {
+
+            if (data.error) {
+                alert("Location not shared yet!");
+                return;
+            }
+
+            let loc = data.location_url;
+
+            // Convert Google Maps short links to embed link
+            let embedUrl = "";
+
+            if (loc.includes("google.com/maps")) {
+                embedUrl = loc.replace("/maps/", "/maps/embed/");
+            }
+            else {
+                // fallback → open directly
+                embedUrl = "https://www.google.com/maps/embed/v1/place?q=" + encodeURIComponent(loc);
+            }
+
+            document.getElementById("mapFrame").src = embedUrl;
+            document.getElementById("map-box").style.display = "block";
+
+            // Auto refresh after 10 seconds
+            setInterval(() => {
+                document.getElementById("mapFrame").src = embedUrl;
+            }, 10000);
+
+        })
+        .catch(err => {
+            alert("Error loading location");
+            console.log(err);
+        });
+}
+</script>
+
+</body>
+</html>

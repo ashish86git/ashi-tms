@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Driver Live Tracking</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+#map_frame { width:100%; height:500px; border:1px solid #ccc; }
+.mb-3 { margin-bottom:1rem; }
+</style>
+</head>
+<body>
+<div class="container mt-4">
+    <h3>Live Driver Tracking</h3>
+
+    <div class="mb-3">
+        <label for="indent_id"><b>Select Indent</b></label>
+        <select id="indent_id" class="form-select">
+            <option value="">-- Select Indent --</option>
+            {% for i in indents %}
+                <option value="{{ i.indent }}">{{ i.indent }} - {{ i.vehicle_number }} - {{ i.driver_name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label for="location_url"><b>Google Maps Link</b></label>
+        <input type="text" id="location_url" class="form-control" placeholder="Paste Google Maps link">
+    </div>
+
+    <button type="button" class="btn btn-primary w-100" id="shareBtn">Share Location</button>
+    <p id="msg" class="mt-2 fw-bold"></p>
+
+    <h5 class="mt-4">Live Map Preview</h5>
+    <iframe id="map_frame" src=""></iframe>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function(){
+
+    const shareBtn = document.getElementById("shareBtn");
+    const msg = document.getElementById("msg");
+
+    shareBtn.addEventListener("click", function(){
+        const indent_id = document.getElementById("indent_id").value.trim();
+        const location_url = document.getElementById("location_url").value.trim();
+
+        if(!indent_id || !location_url){
+            msg.innerText = "Select indent & paste Google Maps link";
+            return;
+        }
+
+        fetch("/share_location", {
+            method:"POST",
+            headers:{"Content-Type":"application/json"},
+            body: JSON.stringify({indent_id, location_url})
+        })
+        .then(r => r.json())
+        .then(d => {
+            if(d.error) msg.innerText = d.error;
+            else msg.innerHTML = "<span class='text-success'>Location saved!</span>";
+        })
+        .catch(err => {
+            console.error(err);
+            msg.innerText = "Error sending data";
+        });
+    });
+
+    // Live map preview
+    setInterval(()=>{
+        const indent = document.getElementById("indent_id").value;
+        if(!indent) return;
+
+        fetch("/get_location/"+encodeURIComponent(indent))
+            .then(r=>r.json())
+            .then(data=>{
+                if(data.location_url) document.getElementById("map_frame").src = data.location_url;
+            });
+    },5000);
+
+});
+</script>
+</body>
+</html>

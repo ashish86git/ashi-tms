@@ -47,10 +47,24 @@
       font-weight: 700;
       font-size: 22px;
       color: var(--text-light) !important;
+      /* लोगो और टेक्स्ट को एक लाइन में लाने के लिए */
+      display: flex;
+      align-items: center;
+    }
+
+    /* ✅ NEW: Navbar Logo Styling */
+    .navbar-brand .navbar-logo {
+        height: 35px; /* Navbar के लिए छोटा आकार */
+        width: auto;
+        border-radius: 50%;
+        margin-right: 8px;
+        border: 2px solid var(--accent-gold);
+        object-fit: cover;
     }
 
     .navbar-brand .bi-truck-front-fill {
-        color: var(--accent-gold); /* Gold icon on dark background */
+        /* पुराने आइकन को लोगो से बदल दिया गया है, इसलिए इसे छुपा दें या इसे भी हटा सकते हैं */
+        display: none;
     }
 
     /* --- Sidebar Styling --- */
@@ -81,31 +95,23 @@
         transform: translateX(0);
     }
 
+    /* ✅ REMOVED: .sidebar .logo-section and related styling, keeping only welcome text h6 inside a new section if needed, but per request, the whole section is removed from HTML */
     .sidebar .logo-section {
       padding: 15px 5px 15px;
       text-align: center;
       background-color: #921A37;
       box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+      /* वेलकम टेक्स्ट के लिए Padding रखा गया है */
     }
 
-    .sidebar img {
-      width: 120px; /* चौड़ाई 150px से कम करके 120px की गई */
-      height: 80px; /* ऊँचाई को चौड़ाई से कम रखा गया ताकि आयताकार दिखे */
-      border-radius: 8px; /* आयताकार रखने के लिए 100% को 8px किया गया */
-      border: 4px solid var(--accent-gold);
-      padding: 0;
-      object-fit: contain; /* इमेज को बिना काटे पूरी तरह से कंटेनर में फिट करने के लिए */
-      filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.2));
-      transform: scale(1);
-      transition: all 0.3s ease-in-out;
-    }
-
-    .sidebar img:hover {
-        transform: scale(1.05);
-        filter: drop-shadow(0 5px 10px rgba(0, 0, 0, 0.4));
-    }
+    /* ✅ REMOVED: .sidebar img styling */
+    /* ✅ REMOVED: .sidebar img:hover styling */
 
     .sidebar h6 {
+      /* ✅ MODIFIED: Navbar में लोगो लगने के बाद, वेलकम टेक्स्ट को भी ऊपर ले जाने के लिए यह CSS अब उपयोगी नहीं है। */
+      /* इसे वेलकम सेक्शन के बिना, अगर दिखाना है तो, Navbar के पास ले जाया जा सकता है या इसे हटा सकते हैं। */
+      /* फ़िलहाल वेलकम टेक्स्ट को हटा दिया गया है क्योंकि यह लोगो सेक्शन का हिस्सा था जिसे हटाया गया है। */
+      /* यदि आपको वेलकम टेक्स्ट को साइडबार में वापस चाहिए, तो इसे एक नए 'user-info' सेक्शन में जोड़ सकते हैं, पर अभी अनुरोध के अनुसार केवल लोगो हटाना है। */
       font-size: 16px;
       margin-top: 10px;
       color: var(--text-light);
@@ -253,7 +259,7 @@
 
     /* Cards */
     .card { border-radius: 0.75rem; transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out; }
-    .card:hover { transform: translateY(-8px); box-shadow: 0 10px 25px rgba(0,0,0,0.25); }
+    .card:hover { transform: translateY(-8px); box-shadow: 0 10px 25px rgb(0, 191, 255); }
     .revenue-bar { transition: width 0.5s ease; height: 6px; margin-top: 5px; border-radius:3px; }
 
     /* PnL colors */
@@ -312,6 +318,7 @@
     <i class="bi bi-list"></i>
   </button>
   <a class="navbar-brand" href="/dashboard">
+    <img src="/static/image.JPG" alt="TMS" class="navbar-logo" />
     <i class="bi bi-truck-front-fill"></i> TMS Portal
   </a>
   <div class="ms-auto d-flex align-items-center">
@@ -325,19 +332,14 @@
 </nav>
 
 <div class="sidebar" id="sidebarMenu">
-  <div class="logo-section">
-    <img src="/static/logo.JPG" alt="TMS Logo" />
-    <h6>Welcome, {{ session['user'] or 'Guest' }}</h6>
-  </div>
-
   <div class="list-group list-group-flush">
     <li class="nav-item text-uppercase small mb-1">MAIN</li>
     <a href="/dashboard" class="list-group-item {% if request.path == '/dashboard' %}active{% endif %}">
       <i class="bi bi-house-fill"></i> Dashboard
     </a>
-    <a href="/financial" class="list-group-item {% if request.path == '/financial' %}active{% endif %}">
-      <i class="bi bi-bar-chart-fill"></i> Financial Dashboard
-    </a>
+<!--    <a href="/financial" class="list-group-item {% if request.path == '/financial' %}active{% endif %}">-->
+<!--      <i class="bi bi-bar-chart-fill"></i> Financial Dashboard-->
+<!--    </a>-->
 
     <h5>FLEET MANAGEMENT</h5>
     <a href="/fleet_master" class="list-group-item {% if request.path == '/fleet_master' %}active{% endif %}">

@@ -64,6 +64,7 @@
                     <th>Vehicle Name</th>
                     <th>Driver Name</th>
                     <th>Status</th>
+                    <th>Trip Performance</th> <!-- NEW COLUMN -->
                     <th>Type</th>
                     <th>Group</th>
                     <th>Customer</th>
@@ -88,6 +89,24 @@
                     <td>{{ trip['Vehicle Name'] }}</td>
                     <td>{{ trip['Driver Name'] }}</td>
                     <td>{{ trip['Status'] }}</td>
+
+                    <!-- NEW TRIP PERFORMANCE COLUMN -->
+                    <td>
+                        <span class="
+                            {% if trip['Trip Performance'] == 'On-Time' %}
+                                text-success
+                            {% elif trip['Trip Performance'] == 'Delayed' %}
+                                text-danger
+                            {% elif trip['Trip Performance'] == 'Early' %}
+                                text-primary
+                            {% else %}
+                                text-secondary
+                            {% endif %}
+                        ">
+                            {{ trip['Trip Performance'] }}
+                        </span>
+                    </td>
+
                     <td>{{ trip['Type'] }}</td>
                     <td>{{ trip['Group'] }}</td>
                     <td>{{ trip['Customer'] }}</td>
@@ -102,7 +121,9 @@
                     <td>{{ trip['Fuel Cost'] | round(2) }}</td>
                     <td>{{ trip['Total Cost'] | round(2) }}</td>
                     <td>{{ trip['Revenue'] | round(2) }}</td>
-                    <td class="{% if trip['PnL'] >= 0 %}text-success{% else %}text-danger{% endif %}">{{ trip['PnL'] | round(2) }}</td>
+                    <td class="{% if trip['PnL'] >= 0 %}text-success{% else %}text-danger{% endif %}">
+                        {{ trip['PnL'] | round(2) }}
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -135,8 +156,9 @@
     /* PnL colors */
     .text-success { color: #28a745 !important; font-weight: 600; }
     .text-danger { color: #dc3545 !important; font-weight: 600; }
+    .text-primary { color: #007bff !important; font-weight: 600; }
+    .text-secondary { color: #6c757d !important; font-weight: 600; }
 
-    /* Better button alignment */
     .gap-2 { gap: 0.5rem !important; }
     @media (max-width: 992px) {
         .col-md-2.d-flex { flex-direction: column; }

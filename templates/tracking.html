@@ -1,117 +1,121 @@
-{% extends "layout.html" %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Live Tracking Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { font-family: Arial, sans-serif; display: flex; height: 100vh; margin: 0; }
+        #sidebar { width: 250px; background-color: #f8f9fa; padding: 15px; overflow-y: auto; border-right: 1px solid #ddd; }
+        #map-container { flex-grow: 1; position: relative; }
+        #map { height: 100%; width: 100%; }
+        h3 { color: #007bff; margin-top: 0; }
+        .indent-item { padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; }
+        .indent-item:hover { background-color: #e2e6ea; }
+        .selected-indent { background-color: #007bff; color: white; font-weight: bold; }
+        .selected-indent:hover { background-color: #0069d9; }
+    </style>
+</head>
+<body>
 
-{% block content %}
-<div class="container">
-    <h2 class="mb-4">Live GPS Tracking Dashboard</h2>
-
-    <!-- Live Map Section -->
-    <div class="card shadow-sm mb-4">
-        <div class="card-body">
-            <h5 class="card-title">Live Vehicle Locations (Google Maps View)</h5>
-            <div id="map" style="height: 500px; border-radius: 8px;"></div>
-        </div>
+    <div id="sidebar">
+        <h3>🚚 Indent ट्रैकिंग</h3>
+        <p>ट्रैक करने के लिए एक Indent चुनें:</p>
+        {% for indent in indents %}
+            <div class="indent-item"
+                 data-indent="{{ indent.indent }}"
+                 onclick="loadTracking('{{ indent.indent }}', this)">
+                <strong>ID:</strong> {{ indent.indent }}<br>
+                <strong>वाहन:</strong> {{ indent.vehicle_number }}<br>
+                <strong>ड्राइवर:</strong> {{ indent.driver_name }}
+            </div>
+        {% endfor %}
     </div>
 
-    <!-- Vehicle Info Table -->
-    <div class="card shadow-sm">
-        <div class="card-body">
-            <h5 class="card-title">Vehicle Tracking Info</h5>
-            <table class="table table-hover" id="tracking-table">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Vehicle ID</th>
-                        <th>Driver</th>
-                        <th>Location</th>
-                        <th>Last Updated</th>
-                        <th>Status</th>
-                        <th>Route</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <!-- Filled via JS -->
-                </tbody>
-            </table>
-        </div>
+    <div id="map-container">
+        <div id="map"></div>
     </div>
-</div>
 
-<!-- Google Maps JS API -->
-<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&callback=initMap" async defer></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-<!-- Custom Map & Data Script -->
-<script>
-// Dummy vehicle data
-const vehicles = [
-    { vehicle_id: 'TRK-101', driver: 'Rajesh Kumar', lat: 28.6139, lon: 77.2090, status: 'Moving', route: 'Route A', last_updated: '2025-05-03 11:45 AM' },
-    { vehicle_id: 'TRK-102', driver: 'Amit Singh', lat: 28.7041, lon: 77.1025, status: 'Idle', route: 'Route B', last_updated: '2025-05-03 11:30 AM' }
-];
+    <script>
+        var map = L.map('map').setView([20.5937, 78.9629], 5); // डिफ़ॉल्ट रूप से भारत का केंद्र
+        var currentPolyline = null; // वर्तमान पाथ को स्टोर करने के लिए
+        var currentMarker = null;   // वर्तमान मार्कर को स्टोर करने के लिए
+        var trackingInterval = null; // लाइव अपडेट इंटरवल
 
-// Initialize Google Map
-let map;
-function initMap() {
-    map = new google.maps.Map(document.getElementById('map'), {
-        center: { lat: 28.6139, lng: 77.2090 }, // New Delhi default center
-        zoom: 12,
-        mapTypeId: google.maps.MapTypeId.ROADMAP
-    });
+        // OpenStreetMap टाइल लेयर जोड़ें
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'
+        }).addTo(map);
 
-    // Loop through vehicles and add markers to map
-    vehicles.forEach(vehicle => {
-        const marker = new google.maps.Marker({
-            position: { lat: vehicle.lat, lng: vehicle.lon },
-            map: map,
-            title: vehicle.vehicle_id
-        });
+        /**
+         * एक विशिष्ट Indent ID के लिए ट्रैकिंग शुरू करता है।
+         */
+        function loadTracking(indentId, element) {
+            console.log("Loading tracking for Indent ID:", indentId);
 
-        // Add info window for each vehicle
-        const infoWindow = new google.maps.InfoWindow({
-            content: `
-                <strong>${vehicle.vehicle_id}</strong><br/>
-                Driver: ${vehicle.driver}<br/>
-                Status: ${vehicle.status}<br/>
-                Location: ${vehicle.lat.toFixed(4)}, ${vehicle.lon.toFixed(4)}
-            `
-        });
+            // साइडबार में चयन को अपडेट करें
+            document.querySelectorAll('.indent-item').forEach(el => {
+                el.classList.remove('selected-indent');
+            });
+            element.classList.add('selected-indent');
 
-        marker.addListener('click', function() {
-            infoWindow.open(map, marker);
-        });
+            // यदि कोई पुराना इंटरवल चल रहा है तो उसे बंद करें
+            if (trackingInterval) {
+                clearInterval(trackingInterval);
+            }
 
-        // Add route (just a straight line for simplicity)
-        const routeCoordinates = [
-            { lat: vehicle.lat, lng: vehicle.lon },  // Starting point
-            { lat: 28.7041, lng: 77.1025 }           // Ending point (just for demo)
-        ];
+            // तुरंत एक बार पाथ लोड करें और फिर हर 10 सेकंड में अपडेट करें
+            fetchPath(indentId);
+            trackingInterval = setInterval(() => fetchPath(indentId), 10000); // 10 सेकंड
+        }
 
-        const routePath = new google.maps.Polyline({
-            path: routeCoordinates,
-            geodesic: true,
-            strokeColor: '#FF5733',
-            strokeOpacity: 1.0,
-            strokeWeight: 4
-        });
+        /**
+         * सर्वर से पाथ डेटा लाता है और मैप पर प्रदर्शित करता है।
+         */
+        function fetchPath(indentId) {
+            fetch(`/get_path/${indentId}`)
+                .then(response => response.json())
+                .then(data => {
+                    const points = data.points;
+                    if (points && points.length > 0) {
+                        const latLngs = points.map(p => [p.latitude, p.longitude]);
+                        const latestPoint = latLngs[latLngs.length - 1];
 
-        routePath.setMap(map);
-    });
+                        // 1. पाथ (पॉलीलाइन) अपडेट करें
+                        if (currentPolyline) {
+                            map.removeLayer(currentPolyline);
+                        }
+                        currentPolyline = L.polyline(latLngs, {color: 'red', weight: 4}).addTo(map);
 
-    // Populate vehicle table with dummy data
-    const tableBody = document.querySelector('#tracking-table tbody');
-    vehicles.forEach(vehicle => {
-        const row = `
-            <tr>
-                <td>${vehicle.vehicle_id}</td>
-                <td>${vehicle.driver}</td>
-                <td>${vehicle.lat.toFixed(4)}, ${vehicle.lon.toFixed(4)}</td>
-                <td>${vehicle.last_updated}</td>
-                <td><span class="badge bg-${vehicle.status === 'Moving' ? 'success' : 'secondary'}">${vehicle.status}</span></td>
-                <td>${vehicle.route}</td>
-            </tr>
-        `;
-        tableBody.insertAdjacentHTML('beforeend', row);
-    });
-}
+                        // मैप को पाथ के आसपास फ़िट करें
+                        map.fitBounds(currentPolyline.getBounds());
 
-// Initialize map once the script loads
-</script>
+                        // 2. वर्तमान स्थान (मार्कर) अपडेट करें
+                        if (currentMarker) {
+                            map.removeLayer(currentMarker);
+                        }
 
-{% endblock %}
+                        // मार्कर को नवीनतम स्थान पर सेट करें
+                        currentMarker = L.marker(latestPoint).addTo(map)
+                            .bindPopup(`<b>Indent: ${indentId}</b><br>
+                                        अंतिम अपडेट: ${new Date(points[points.length - 1].timestamp).toLocaleString()}`)
+                            .openPopup();
+                    } else {
+                        // यदि कोई पॉइंट नहीं है, तो मैप साफ़ करें
+                        if (currentPolyline) map.removeLayer(currentPolyline);
+                        if (currentMarker) map.removeLayer(currentMarker);
+                        console.log("No location data found for this indent.");
+                    }
+                })
+                .catch(error => console.error('Error fetching path:', error));
+        }
+
+        // पेज लोड होने पर यदि कोई Indent है तो पहले Indent को स्वचालित रूप से ट्रैक करें
+        const firstIndentElement = document.querySelector('.indent-item');
+        if (firstIndentElement) {
+            loadTracking(firstIndentElement.dataset.indent, firstIndentElement);
+        }
+    </script>
+</body>
+</html>
