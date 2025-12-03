@@ -2,6 +2,10 @@ from flask import Flask, render_template, request, redirect, url_for, session, s
 import pandas as pd
 import os
 import io
+import tracking
+from urllib.parse import quote_plus
+import requests, time, math
+from ortools.constraint_solver import routing_enums_pb2, pywrapcp
 from decimal import Decimal, InvalidOperation
 from collections import defaultdict
 from werkzeug.utils import secure_filename
@@ -534,6 +538,9 @@ def def_page():
                 indent_date = request.form.get("indent_date", "")
                 indent_number = request.form.get("indent", "")
                 allocation_date = request.form.get("allocation_date", "")
+                driver_name = request.form.get("driver_name", "")
+                driver_contact = request.form.get("driver_contact", "")
+
                 pickup_location = request.form.get("pickup_location", "")
                 vehicle_model = request.form.get("vehicle_model", "")
                 vehicle_based = request.form.get("vehicle_based", "")
@@ -559,29 +566,34 @@ def def_page():
                         pickup_location, location, vehicle_number, vehicle_model,
                         vehicle_based, lr_no, material, load_per_bucket, no_of_buckets,
                         t_load, pod_received, freight_tiger_number, freight_tiger_month,
-                        loading_time, parking_time, exit_time
+                        loading_time, parking_time, exit_time,
+                        driver_name, driver_contact
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
-                    indent_date,
-                    indent_number,
-                    allocation_date,
-                    cust_name,
-                    cust_range,
-                    pickup_location,
-                    drop_location,
-                    vehicle_no,
-                    vehicle_model,
-                    vehicle_based,
-                    cust_lr_no,
-                    cust_material,
-                    load_per_bucket,
-                    no_of_buckets,
-                    total_load,
-                    pod_received,
-                    ft_number,
-                    ft_month,
-                    None, None, None  # Tracking fields initialized as NULL (which is correct)
+                    indent_date,  # 1
+                    indent_number,  # 2
+                    allocation_date,  # 3
+                    cust_name,  # 4
+                    cust_range,  # 5
+                    pickup_location,  # 6
+                    drop_location,  # 7
+                    vehicle_no,  # 8
+                    vehicle_model,  # 9
+                    vehicle_based,  # 10
+                    cust_lr_no,  # 11
+                    cust_material,  # 12
+                    load_per_bucket,  # 13
+                    no_of_buckets,  # 14
+                    total_load,  # 15
+                    pod_received,  # 16
+                    ft_number,  # 17
+                    ft_month,  # 18
+                    None,  # 19
+                    None,  # 20
+                    None,  # 21
+                    driver_name,  # 22 NEW
+                    driver_contact  # 23 NEW
                 ))
 
             conn.commit()
@@ -601,6 +613,7 @@ def def_page():
     rows = cursor.fetchall()
     col_names = [desc[0] for desc in cursor.description]
     indent_data = [dict(zip(col_names, row)) for row in rows]
+    indent_data = indent_data[:50]
 
     cursor.close()
     conn.close()
@@ -647,10 +660,10 @@ def upload_indent():
             sql = """
                 INSERT INTO indents (
                     indent_date, indent, allocation_date, customer_name, "range",
-                    pickup_location, location, vehicle_number, vehicle_model,
+                    pickup_location, location, vehicle_number, driver_name, driver_contact, vehicle_model,
                     vehicle_based, lr_no, material, load_per_bucket, no_of_buckets,
                     t_load, pod_received, freight_tiger_number, freight_tiger_month
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             for _, row in valid_df.iterrows():
                 cursor.execute(sql, (
@@ -662,6 +675,8 @@ def upload_indent():
                     row.get("pickup_location"),
                     row.get("location"),
                     row.get("vehicle_number"),
+                    row.get("driver_name"),
+                    row.get("driver_contact"),
                     row.get("vehicle_model"),
                     row.get("vehicle_based"),
                     row.get("lr_no"),
@@ -1232,22 +1247,456 @@ def edit_order(order_id):
 
 
 
-@app.route('/optimize')
+from flask import Flask, render_template, request, flash, redirect
+from urllib.parse import quote_plus
+import requests, time, math
+from ortools.constraint_solver import routing_enums_pb2, pywrapcp
+import pytz
+
+# ------------------ Utility Functions ------------------
+
+# -------- Utility Functions --------
+# -------- Utility Functions --------
+def geocode_address(address):
+    url = "https://nominatim.openstreetmap.org/search"
+    params = {"q": address, "format": "json"}
+    headers = {"User-Agent": "MyApp/1.0"}
+    try:
+        response = requests.get(url, params=params, headers=headers, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        if data:
+            return float(data[0]["lat"]), float(data[0]["lon"])
+    except:
+        return None, None
+    return None, None
+
+def haversine(lat1, lon1, lat2, lon2):
+    R = 6371
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi, dlambda = math.radians(lat2-lat1), math.radians(lon2-lon1)
+    a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
+    return R*2*math.atan2(math.sqrt(a), math.sqrt(1-a))
+
+def create_distance_matrix(coords):
+    n = len(coords)
+    matrix = [[0]*n for _ in range(n)]
+    for i in range(n):
+        for j in range(n):
+            if i!=j:
+                matrix[i][j] = haversine(*coords[i], *coords[j])
+    return matrix
+
+def solve_tsp(distance_matrix):
+    n = len(distance_matrix)
+    manager = pywrapcp.RoutingIndexManager(n, 1, 0)
+    routing = pywrapcp.RoutingModel(manager)
+    def distance_callback(from_index, to_index):
+        return int(distance_matrix[manager.IndexToNode(from_index)][manager.IndexToNode(to_index)]*1000)
+    transit_callback_index = routing.RegisterTransitCallback(distance_callback)
+    routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
+    search_parameters = pywrapcp.DefaultRoutingSearchParameters()
+    search_parameters.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
+    solution = routing.SolveWithParameters(search_parameters)
+    if solution:
+        index = routing.Start(0)
+        route = []
+        while not routing.IsEnd(index):
+            route.append(manager.IndexToNode(index))
+            index = solution.Value(routing.NextVar(index))
+        route.append(manager.IndexToNode(index))
+        return route
+    return None
+
+def calculate_total_distance(route_index, distance_matrix):
+    total_distance = 0
+    for i in range(len(route_index)-1):
+        total_distance += distance_matrix[route_index[i]][route_index[i+1]]
+    return total_distance
+
+def create_google_maps_url(address_list):
+    from urllib.parse import quote_plus
+    url_parts = [quote_plus(addr) for addr in address_list]
+    return "https://www.google.com/maps/dir/" + "/".join(url_parts) + "/"
+
+def save_trip_to_db(indent_id, vehicle, driver_name, driver_contact, pickup, drops,
+                     total_distance, est_arrival, exit_time):
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    drop_location = ", ".join(drops)
+    total_drops = len(drops)
+    duration_hours = round(total_distance / 40, 2)
+
+    cursor.execute("""
+        INSERT INTO trip_data (
+            indent_id, vehicle_no, driver_name, driver_contact,
+            pickup, drop_location, total_drops,
+            exit_time, eta_arrival_time, actual_arrival_time,
+            total_distance, duration_hours, customer_details,
+            pod_url, created_at
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+    """, (
+        indent_id,
+        vehicle,
+        driver_name,
+        driver_contact,
+        pickup,
+        drop_location,
+        total_drops,
+        exit_time,
+        str(est_arrival),
+        None,
+        total_distance,
+        duration_hours,
+        "[]",      # default customer details
+        None       # pod url
+    ))
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+
+
+# -------- Optimize Route --------
+
+@app.route('/optimize', methods=["GET", "POST"])
 def optimize():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    yesterday = (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d")
+
+    # Fetch both newly created indents (today/yesterday) and exited indents
+    cursor.execute("""
+        SELECT indent, vehicle_number, pickup_location, location, exit_time, driver_name, driver_contact
+        FROM indents
+        WHERE DATE(indent_date) BETWEEN %s AND %s
+           OR exit_time IS NOT NULL
+        ORDER BY indent_date DESC
+        LIMIT 10
+    """, (yesterday, today))
+
+    rows = cursor.fetchall()
+    indents_data = []
+
+    ist = pytz.timezone('Asia/Kolkata')
+
+    for row in rows:
+        indent_id, vehicle, pickup, drops_raw, exit_time, driver_name, driver_contact = row
+        drops = [d.strip() for d in drops_raw.split(",") if d.strip()]
+        exit_time = exit_time or datetime.now()
+        exit_time_ist = exit_time.astimezone(ist)
+
+        all_addresses = [pickup] + drops
+
+        # Geocode addresses
+        coords = []
+        for addr in all_addresses:
+            lat, lon = geocode_address(addr)
+            if lat is None: lat, lon = 0, 0
+            coords.append((lat, lon))
+            time.sleep(1)
+
+        dist_matrix = create_distance_matrix(coords)
+        auto_route_index = solve_tsp(dist_matrix)
+
+        if auto_route_index:
+            auto_route = [all_addresses[i] for i in auto_route_index]
+            total_distance = round(calculate_total_distance(auto_route_index, dist_matrix), 2)
+
+            est_arrival = [exit_time_ist]
+            cumulative_hours = 0
+            for j in range(len(auto_route_index)-1):
+                dist_km = dist_matrix[auto_route_index[j]][auto_route_index[j+1]]
+                travel_hours = dist_km / 40
+                cumulative_hours += travel_hours
+                eta = exit_time + timedelta(hours=cumulative_hours)
+                eta_ist = eta.astimezone(ist)
+                est_arrival.append(eta_ist)
+        else:
+            auto_route = all_addresses
+            total_distance = 0
+            est_arrival = [exit_time_ist]*len(all_addresses)
+
+        # Save trip to trip_data with driver info
+        save_trip_to_db(
+            indent_id=indent_id,
+            vehicle=vehicle,
+            driver_name=driver_name,
+            driver_contact=driver_contact,
+            pickup=pickup,
+            drops=drops,
+            total_distance=total_distance,
+            est_arrival=est_arrival[-1] if est_arrival else exit_time_ist,
+            exit_time=exit_time
+        )
+
+        indents_data.append({
+            "indent_id": indent_id,
+            "vehicle": vehicle,
+            "pickup": pickup,
+            "auto_route": auto_route,
+            "total_distance": total_distance,
+            "estimated_arrival": est_arrival,
+            "map_url": create_google_maps_url(all_addresses),
+            "exit_time": exit_time_ist,
+        })
+
+    cursor.close()
+    conn.close()
+    return render_template("route_optimize.html", indents_data=indents_data)
 
 
-    return render_template('route_optimize.html')
 
-@app.route('/trip-history')
+# -------- Trip History --------
+
+
+@app.route('/trip-history', methods=['GET'])
 def trip_history():
+    # Filters
+    vehicle_filter = request.args.get('vehicle')
+    indent_filter = request.args.get('indent')
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Main query: fetch trips with customer info
+    query = """
+        SELECT
+            t.indent_id, t.vehicle_no, t.driver_name, t.driver_contact,
+            t.pickup, t.drop_location, t.total_drops,
+            t.exit_time, t.eta_arrival_time, t.actual_arrival_time,
+            t.total_distance, t.duration_hours, t.customer_details,
+            t.pod_url, t.created_at, i.customer_name
+        FROM trip_data t
+        LEFT JOIN indents i
+            ON t.indent_id = i.indent
+        WHERE 1=1
+    """
+
+    params = []
+
+    if vehicle_filter:
+        query += " AND t.vehicle_no=%s"
+        params.append(vehicle_filter)
+    if indent_filter:
+        query += " AND t.indent_id=%s"
+        params.append(indent_filter)
+    if start_date and end_date:
+        query += " AND DATE(t.exit_time) BETWEEN %s AND %s"
+        params.extend([start_date, end_date])
+
+    query += " ORDER BY t.indent_id, t.id DESC"
+
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+
+    trips_dict = {}  # Use dict to store only one entry per indent_id
+
+    for r in rows:
+        indent_id = r[0]
+
+        if indent_id in trips_dict:
+            continue  # Already added this indent_id
+
+        status = "Pending"  # default
+        actual = r[8]  # actual_arrival_time
+        eta = r[7]  # eta_arrival_time
+
+        if actual:
+            if eta:
+                if actual == eta:
+                    status = "On Time"
+                elif actual < eta:
+                    status = "Arrived"
+                else:
+                    status = "Delayed"
+            else:
+                status = "Arrived"
+
+        # Customer name logic
+        customer_list = []
+        if r[14]:  # i.customer_name exists
+            customer_list.append({"name": r[14]})
+        elif r[11]:  # customer_details JSON
+            try:
+                if isinstance(r[11], str):
+                    customer_list = json.loads(r[11])
+                else:
+                    customer_list = r[11]
+            except Exception:
+                customer_list = []
+
+        trips_dict[indent_id] = {
+            "indent_id": r[0],
+            "vehicle_no": r[1],
+            "driver_name": r[2] if r[2] else None,
+            "driver_contact": r[3],  # NEW
+            "pickup": r[4],
+            "drop_location": r[5],
+            "total_drops": r[6],
+            "exit_time": r[7],
+            "eta_arrival_time": r[8],
+            "actual_arrival_time": r[9],
+            "total_distance": r[10],
+            "duration_hours": r[11],
+            "customer_details": customer_list,
+            "pod_url": r[13],
+            "created_at": r[14],
+            "status": status
+        }
+
+    cursor.close()
+    conn.close()
+
+    # Convert dict values to list for template
+    trips = list(trips_dict.values())
+
+    return render_template("trip_history.html", trips=trips)
 
 
-    return render_template('trip_history.html')
+
+@app.route('/update-trip', methods=['POST'])
+def update_trip():
+    try:
+        data = request.json or {}
+        trip_id = data.get("trip_id")
+        actual_arrival_time = data.get("actual_arrival_time")
+        pod_url = data.get("pod_url")
+
+        if not trip_id:
+            return jsonify({"status": "error", "message": "Missing trip_id"}), 400
+
+        # Normalize actual_arrival_time coming from <input type="datetime-local">
+        # e.g. "2025-11-26T14:30" -> "2025-11-26 14:30:00"
+        if actual_arrival_time:
+            # Replace T with space
+            actual_arrival_time = actual_arrival_time.replace("T", " ")
+            # If seconds missing (length like 'YYYY-MM-DD HH:MM'), append :00
+            if len(actual_arrival_time) == 16:
+                actual_arrival_time = actual_arrival_time + ":00"
+
+        # Normalize pod_url: allow empty string -> None
+        if pod_url is not None and pod_url.strip() == "":
+            pod_url = None
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE trip_data
+            SET actual_arrival_time=%s,
+                pod_url=%s,
+                updated_at=NOW()
+            WHERE id=%s
+        """, (actual_arrival_time, pod_url, trip_id))
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({"status": "success", "message": "Trip updated successfully"})
+    except Exception as e:
+        # return error message so you can debug if something else fails
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
+# ----------------------
+def resolve_link(url):
+    try:
+        if "maps.app.goo.gl" in url or "goo.gl/maps" in url:
+            resp = requests.get(url, allow_redirects=True, timeout=5)
+            url = resp.url
+        # Convert to iframe-friendly if @lat,lng exists
+        match = re.search(r'@(-?\d+\.\d+),(-?\d+\.\d+)', url)
+        if match:
+            lat, lng = match.groups()
+            return f"https://www.google.com/maps?q={lat},{lng}&z=17"
+        return url
+    except:
+        return url
+
+# ----------------------
+# Tracking page
+# ----------------------
 @app.route('/tracking')
 def tracking():
-    return render_template('tracking.html')
+
+    conn = get_db_connection()
+
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+
+    cur.execute("SELECT indent, vehicle_number, driver_name FROM indents ORDER BY indent DESC")
+    indents = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+
+    return render_template("tracking.html", indents=indents)
+
+
+# -------------------------------------------------------------------------
+
+# -------------------------------------------------------------------------
+@app.route('/share_location', methods=['POST'])
+def share_location():
+
+    data = request.get_json()
+    indent_id = data.get('indent_id')
+    latitude = data.get('latitude')
+    longitude = data.get('longitude')
+
+    if not indent_id or latitude is None or longitude is None:
+        return jsonify({"error": "Missing indent_id, latitude, or longitude"}), 400
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+
+    try:
+        cur.execute("""
+            INSERT INTO driver_locations (indent_id, latitude, longitude)
+            VALUES (%s, %s, %s)
+        """, (indent_id, latitude, longitude))
+        conn.commit()
+        return jsonify({"status": "ok"}), 200
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
+# -------------------------------------------------------------------------
+
+# -------------------------------------------------------------------------
+@app.route('/get_path/<string:indent_id>')
+def get_path(indent_id):
+
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+
+    cur.execute("""
+        SELECT latitude, longitude, timestamp
+        FROM driver_locations
+        WHERE indent_id=%s
+        ORDER BY timestamp ASC
+    """, (indent_id,))
+    points = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return jsonify({"points": points})
 
 if __name__ == '__main__':
     app.run(debug=True)
