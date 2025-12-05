@@ -1,186 +1,212 @@
 {% extends "layout.html" %}
 
-{% block title %}Trip History{% endblock %}
-
-{% block head %}
-<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
-<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.dataTables.min.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
-
-<style>
-    .status-Arrived { color: green; font-weight: bold; }
-    .status-Delayed { color: red; font-weight: bold; }
-    .status-Pending { color: orange; font-weight: bold; }
-
-    /* Status Filter Buttons */
-    .status-btn {
-        margin-right: 8px;
-        border-radius: 20px;
-        padding: 6px 16px;
-        font-weight: 600;
-        cursor: pointer;
-    }
-
-    .status-btn.active {
-        background: black !important;
-        color: white !important;
-        border: 2px solid black !important;
-    }
-</style>
-{% endblock %}
-
 {% block content %}
-<div class="container-fluid p-3">
-    <h2 class="mb-3">Trip History</h2>
 
-    <!-- FILTER FORM -->
-    <form id="filterForm" class="row g-2 mb-3">
-        <div class="col-md-3 col-lg-2"><input type="text" name="vehicle" class="form-control" placeholder="Vehicle No" value="{{ request.args.get('vehicle', '') }}"></div>
-        <div class="col-md-3 col-lg-2"><input type="text" name="indent" class="form-control" placeholder="Indent ID" value="{{ request.args.get('indent', '') }}"></div>
-        <div class="col-md-3 col-lg-2"><input type="date" name="start_date" class="form-control" value="{{ request.args.get('start_date', '') }}"></div>
-        <div class="col-md-3 col-lg-2"><input type="date" name="end_date" class="form-control" value="{{ request.args.get('end_date', '') }}"></div>
+<h2 class="mb-4 text-primary">🚚 Trip History Dashboard</h2>
 
-        <div class="col-auto">
-            <button type="submit" class="btn btn-primary">Filter</button>
-            <a href="/trip-history" class="btn btn-secondary">Clear</a>
+<div class="controls-row">
+
+    <!-- Status Buttons -->
+    <div class="row mb-4">
+        <h5 class="mb-2">Filter by Status</h5>
+        <div class="col-12 d-flex">
+            <button id="showAll" class="btn btn-dark me-2 btn-active">All Trips</button>
+            <button id="showPending" class="btn btn-warning me-2">Pending</button>
+            <button id="showClosed" class="btn btn-success">Closed</button>
         </div>
-    </form>
-
-    <!-- STATUS FILTER BUTTONS -->
-    <div class="mb-3">
-        <button class="btn btn-outline-dark status-btn active" data-status="">All</button>
-        <button class="btn btn-outline-success status-btn" data-status="Arrived">🟢 Arrived</button>
-        <button class="btn btn-outline-danger status-btn" data-status="Delayed">🔴 Delayed</button>
-        <button class="btn btn-outline-warning status-btn" data-status="Pending">🟠 Pending</button>
     </div>
 
-    <!-- TABLE -->
-    <div class="table-responsive">
-        <table id="tripTable" class="display nowrap table table-striped table-bordered w-100">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Indent ID</th>
-                    <th>Vehicle</th>
-                    <th>Driver Name</th>
-                    <th>Driver Contact</th>
-                    <th>Pickup</th>
-                    <th>Drop</th>
-                    <th>Total Drops</th>
-                    <th>Exit</th>
-                    <th>ETA</th>
-                    <th>Actual</th>
-                    <th>Distance</th>
-                    <th>Duration</th>
-                    <th>Customers</th>
-                    <th>POD</th>
-                    <th>Status</th>
-                    <th>Action</th>
-                    <th>Created</th>
-                </tr>
-            </thead>
+    <!-- Text Filters -->
+    <div class="row g-3 mb-3">
+        <h5 class="mb-2">Search Filters</h5>
 
-            <tbody>
-                {% for trip in trips %}
-                <tr data-id="{{ trip.id }}">
-                    <td>{{ trip.id }}</td>
-                    <td>{{ trip.indent_id }}</td>
-                    <td>{{ trip.vehicle_no }}</td>
-                    <td>{{ trip.driver_name }}</td>
-                    <td>{{ trip.driver_contact }}</td> <!-- NEW -->
-                    <td>{{ trip.pickup }}</td>
-                    <td>{{ trip.drop_location }}</td>
-                    <td>{{ trip.total_drops }}</td>
-                    <td>{{ trip.exit_time }}</td>
-                    <td>{{ trip.eta_arrival_time }}</td>
-                    <td>
-                        <input type="datetime-local" class="form-control actual-arrival"
-                            value="{{ trip.actual_arrival_time|default('', true)|replace(' ', 'T') }}">
-                    </td>
-                    <td>{{ trip.total_distance }}</td>
-                    <td>{{ trip.duration_hours }}</td>
-                    <td>
-                        {% for cust in trip.customer_details %}
-                        <div>{{ cust.name }} ({{ cust.mobile }})</div>
-                        {% endfor %}
-                    </td>
-                    <td>
-                        <input type="text" class="form-control pod-url" placeholder="POD URL"
-                            value="{{ trip.pod_url or '' }}">
-                    </td>
-                    <td class="status-{{ trip.status }}">{{ trip.status }}</td>
-                    <td><button class="btn btn-sm btn-success save-trip">Save</button></td>
-                    <td>{{ trip.created_at }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <div class="col-md-3">
+            <label class="form-label">Customer Name</label>
+            <input type="text" id="customerFilter" class="form-control" placeholder="Search customer">
+        </div>
+
+        <div class="col-md-3">
+            <label class="form-label">Vehicle No.</label>
+            <input type="text" id="vehicleFilter" class="form-control" placeholder="Search vehicle">
+        </div>
+
+        <div class="col-md-3">
+            <label class="form-label">Indent ID</label>
+            <input type="text" id="indentFilter" class="form-control" placeholder="Search indent">
+        </div>
+    </div>
+
+    <!-- Date Filter -->
+    <div class="row g-3">
+        <div class="col-md-3">
+            <label class="form-label">Created Date (Start)</label>
+            <input type="date" id="startDateFilter" class="form-control">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Created Date (End)</label>
+            <input type="date" id="endDateFilter" class="form-control">
+        </div>
+        <div class="col-md-6 d-flex align-items-end justify-content-end">
+            <button id="clearFilters" class="btn btn-secondary">Clear All Filters</button>
+        </div>
     </div>
 </div>
-{% endblock %}
 
-{% block scripts %}
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-<script src="https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js"></script>
-<script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.html5.min.js"></script>
-<script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.print.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+<!-- Trip History Table -->
+<div class="table-responsive mt-4">
+    <table class="table table-bordered table-striped align-middle" id="tripTable">
+        <thead class="table-dark">
+        <tr>
+            <th>ID</th>
+            <th>Indent ID</th>
+            <th>Customer Name</th>
+            <th>Vehicle</th>
+            <th>Driver</th>
+            <th>Contact</th>
+            <th>Pickup</th>
+            <th>Drop</th>
+            <th>Drops</th>
+            <th>Exit Time</th>
+            <th>ETA Arrival</th>
+            <th>Actual Arrival</th>
+            <th>Distance</th>
+            <th>Duration</th>
+            <th>Customer Details</th>
+            <th>POD</th>
+            <th>Created At</th>
+            <th>Action</th>
+        </tr>
+        </thead>
+
+        <tbody>
+        {% for t in trips %}
+        <tr
+            data-status="{% if t.actual_arrival_time %}closed{% else %}pending{% endif %}"
+            data-indent="{{ t.indent_id|lower }}"
+            data-vehicle="{{ t.vehicle_no|lower }}"
+            data-customer="{{ t.customer_name|lower }}"
+            data-created="{{ t.created_at.strftime('%Y-%m-%d') if t.created_at else '' }}"
+        >
+            <td>{{ t.id }}</td>
+            <td>{{ t.indent_id }}</td>
+            <td>{{ t.customer_name }}</td>
+            <td>{{ t.vehicle_no }}</td>
+            <td>{{ t.driver_name }}</td>
+            <td>{{ t.driver_contact }}</td>
+            <td>{{ t.pickup }}</td>
+            <td>{{ t.drop_location }}</td>
+            <td>{{ t.total_drops }}</td>
+            <td>{{ t.exit_time }}</td>
+            <td>{{ t.eta_arrival_time }}</td>
+            <td>{{ t.actual_arrival_time if t.actual_arrival_time else "-" }}</td>
+            <td>{{ t.total_distance }}</td>
+            <td>{{ t.duration_hours }}</td>
+            <td>{{ t.customer_details }}</td>
+
+            <td>
+                {% if t.pod_url %}
+                <a href="{{ t.pod_url }}" target="_blank" class="text-success">View POD</a>
+                {% else %}N/A{% endif %}
+            </td>
+
+            <td>{{ t.created_at }}</td>
+
+            <td>
+                {% if not t.actual_arrival_time %}
+                <button
+                    class="btn btn-sm btn-primary"
+                    data-bs-toggle="modal"
+                    data-bs-target="#closeModal{{ t.id }}">
+                    Close
+                </button>
+                {% else %}
+                <span class="badge bg-success px-3 py-2">Closed</span>
+                {% endif %}
+
+                <!-- Close Modal -->
+                <div class="modal fade" id="closeModal{{ t.id }}" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+
+                            <form action="/close-indent/{{ t.id }}" method="POST">
+                                <div class="modal-header bg-success text-white">
+                                    <h5 class="modal-title">Close Trip - {{ t.indent_id }}</h5>
+                                    <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                </div>
+
+                                <div class="modal-body">
+                                    <label class="form-label fw-bold">Actual Arrival Time</label>
+                                    <input type="datetime-local" name="actual_arrival_time" class="form-control" required>
+
+                                    <label class="form-label mt-3 fw-bold">POD URL</label>
+                                    <input type="url" name="pod_url" class="form-control" required>
+                                </div>
+
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                    <button type="submit" class="btn btn-success">Close Trip</button>
+                                </div>
+                            </form>
+
+                        </div>
+                    </div>
+                </div>
+
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
 
 <script>
-$(document).ready(function () {
+document.addEventListener("DOMContentLoaded", () => {
 
-    var table = $('#tripTable').DataTable({
-        dom: 'Bfrtip',
-        scrollX: true,
-        pageLength: 10,
-        buttons: ['copy', 'csv', 'excel', 'pdf', 'print']
-    });
+    const filters = {
+        customer: document.getElementById("customerFilter"),
+        vehicle: document.getElementById("vehicleFilter"),
+        indent: document.getElementById("indentFilter"),
+        start: document.getElementById("startDateFilter"),
+        end: document.getElementById("endDateFilter")
+    };
 
-    $('.status-btn').on('click', function () {
-        $('.status-btn').removeClass('active');
-        $(this).addClass('active');
+    const rows = document.querySelectorAll("#tripTable tbody tr");
+    let statusFilter = "all";
 
-        var status = $(this).data('status');
-        table.column(15).search(status).draw(); // STATUS column index updated
-    });
+    function applyFilters() {
+        rows.forEach(row => {
+            const matchStatus = statusFilter === "all" || row.dataset.status === statusFilter;
+            const matchCustomer = row.dataset.customer.includes(filters.customer.value.toLowerCase());
+            const matchIndent = row.dataset.indent.includes(filters.indent.value.toLowerCase());
+            const matchVehicle = row.dataset.vehicle.includes(filters.vehicle.value.toLowerCase());
 
-    $('.save-trip').on('click', function () {
-        var row = $(this).closest('tr');
-        var trip_id = row.data('id');
-        var actual_arrival = row.find('.actual-arrival').val();
-        var pod_url = row.find('.pod-url').val();
+            const created = row.dataset.created;
+            let matchDate = true;
+            if (filters.start.value && created < filters.start.value) matchDate = false;
+            if (filters.end.value && created > filters.end.value) matchDate = false;
 
-        if (!actual_arrival || !pod_url) {
-            alert('Please enter both Actual Arrival Time and POD URL.');
-            return;
-        }
-
-        var btn = $(this);
-        btn.prop('disabled', true).text('Saving...');
-
-        $.ajax({
-            url: '/update-trip',
-            method: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({
-                trip_id: trip_id,
-                actual_arrival_time: actual_arrival,
-                pod_url: pod_url
-            }),
-            success: function (res) {
-                alert(res.message || "Trip Updated!");
-                location.reload();
-            },
-            error: function () {
-                alert("Error updating trip!");
-                btn.prop('disabled', false).text('Save');
-            }
+            row.style.display =
+                matchStatus && matchCustomer && matchIndent && matchVehicle && matchDate
+                ? "" : "none";
         });
-    });
+    }
 
+    document.getElementById("showAll").onclick = () => { statusFilter = "all"; applyFilters(); };
+    document.getElementById("showPending").onclick = () => { statusFilter = "pending"; applyFilters(); };
+    document.getElementById("showClosed").onclick = () => { statusFilter = "closed"; applyFilters(); };
+
+    Object.values(filters).forEach(input =>
+        input.addEventListener("input", applyFilters)
+    );
+
+    document.getElementById("clearFilters").onclick = () => {
+        Object.values(filters).forEach(i => i.value = "");
+        statusFilter = "all";
+        applyFilters();
+    };
+
+    applyFilters();
 });
 </script>
+
 {% endblock %}
