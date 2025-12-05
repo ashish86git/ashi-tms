@@ -1458,20 +1458,25 @@ def trip_history():
     # Filters
     vehicle_filter = request.args.get('vehicle')
     indent_filter = request.args.get('indent')
+    status_filter = request.args.get('status')  # New status filter
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
 
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Main query: fetch trips with customer info
+    # Main Query with status column
     query = """
         SELECT
-            t.indent_id, t.vehicle_no, t.driver_name, t.driver_contact,
+            t.id, t.indent_id, t.vehicle_no, t.driver_name, t.driver_contact,
             t.pickup, t.drop_location, t.total_drops,
             t.exit_time, t.eta_arrival_time, t.actual_arrival_time,
             t.total_distance, t.duration_hours, t.customer_details,
-            t.pod_url, t.created_at, i.customer_name
+            t.pod_url, t.created_at, i.customer_name,
+            CASE 
+                WHEN t.actual_arrival_time IS NULL THEN 'Pending'
+                ELSE 'Closed'
+            END AS status
         FROM trip_data t
         LEFT JOIN indents i
             ON t.indent_id = i.indent
@@ -1483,124 +1488,80 @@ def trip_history():
     if vehicle_filter:
         query += " AND t.vehicle_no=%s"
         params.append(vehicle_filter)
+
     if indent_filter:
         query += " AND t.indent_id=%s"
         params.append(indent_filter)
+
+    if status_filter:
+        if status_filter.lower() == "pending":
+            query += " AND t.actual_arrival_time IS NULL"
+        elif status_filter.lower() == "closed":
+            query += " AND t.actual_arrival_time IS NOT NULL"
+
     if start_date and end_date:
         query += " AND DATE(t.exit_time) BETWEEN %s AND %s"
         params.extend([start_date, end_date])
 
-    query += " ORDER BY t.indent_id, t.id DESC"
+    query += " ORDER BY t.id DESC"
 
     cursor.execute(query, params)
     rows = cursor.fetchall()
 
-    trips_dict = {}  # Use dict to store only one entry per indent_id
+    trips = []
 
     for r in rows:
-        indent_id = r[0]
-
-        if indent_id in trips_dict:
-            continue  # Already added this indent_id
-
-        status = "Pending"  # default
-        actual = r[8]  # actual_arrival_time
-        eta = r[7]  # eta_arrival_time
-
-        if actual:
-            if eta:
-                if actual == eta:
-                    status = "On Time"
-                elif actual < eta:
-                    status = "Arrived"
-                else:
-                    status = "Delayed"
-            else:
-                status = "Arrived"
-
-        # Customer name logic
-        customer_list = []
-        if r[14]:  # i.customer_name exists
-            customer_list.append({"name": r[14]})
-        elif r[11]:  # customer_details JSON
-            try:
-                if isinstance(r[11], str):
-                    customer_list = json.loads(r[11])
-                else:
-                    customer_list = r[11]
-            except Exception:
-                customer_list = []
-
-        trips_dict[indent_id] = {
-            "indent_id": r[0],
-            "vehicle_no": r[1],
-            "driver_name": r[2] if r[2] else None,
-            "driver_contact": r[3],  # NEW
-            "pickup": r[4],
-            "drop_location": r[5],
-            "total_drops": r[6],
-            "exit_time": r[7],
-            "eta_arrival_time": r[8],
-            "actual_arrival_time": r[9],
-            "total_distance": r[10],
-            "duration_hours": r[11],
-            "customer_details": customer_list,
-            "pod_url": r[13],
-            "created_at": r[14],
-            "status": status
-        }
+        trips.append({
+            "id": r[0],
+            "indent_id": r[1],
+            "vehicle_no": r[2],
+            "driver_name": r[3],
+            "driver_contact": r[4],
+            "pickup": r[5],
+            "drop_location": r[6],
+            "total_drops": r[7],
+            "exit_time": r[8],
+            "eta_arrival_time": r[9],
+            "actual_arrival_time": r[10],
+            "total_distance": r[11],
+            "duration_hours": r[12],
+            "customer_details": r[13],
+            "pod_url": r[14],
+            "created_at": r[15],
+            "customer_name": r[16],
+            "status": r[17],
+        })
 
     cursor.close()
     conn.close()
 
-    # Convert dict values to list for template
-    trips = list(trips_dict.values())
-
     return render_template("trip_history.html", trips=trips)
 
 
+@app.route('/close-indent/<int:id>', methods=['POST'])
+def close_indent(id):
+    actual_arrival_time = request.form.get("actual_arrival_time")
+    pod_url = request.form.get("pod_url")
 
-@app.route('/update-trip', methods=['POST'])
-def update_trip():
-    try:
-        data = request.json or {}
-        trip_id = data.get("trip_id")
-        actual_arrival_time = data.get("actual_arrival_time")
-        pod_url = data.get("pod_url")
+    conn = get_db_connection()
+    cursor = conn.cursor()
 
-        if not trip_id:
-            return jsonify({"status": "error", "message": "Missing trip_id"}), 400
+    query = """
+        UPDATE trip_data
+        SET actual_arrival_time = %s,
+            pod_url = %s
+        WHERE id = %s
+    """
 
-        # Normalize actual_arrival_time coming from <input type="datetime-local">
-        # e.g. "2025-11-26T14:30" -> "2025-11-26 14:30:00"
-        if actual_arrival_time:
-            # Replace T with space
-            actual_arrival_time = actual_arrival_time.replace("T", " ")
-            # If seconds missing (length like 'YYYY-MM-DD HH:MM'), append :00
-            if len(actual_arrival_time) == 16:
-                actual_arrival_time = actual_arrival_time + ":00"
+    cursor.execute(query, (actual_arrival_time, pod_url, id))
+    conn.commit()
 
-        # Normalize pod_url: allow empty string -> None
-        if pod_url is not None and pod_url.strip() == "":
-            pod_url = None
+    cursor.close()
+    conn.close()
 
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            UPDATE trip_data
-            SET actual_arrival_time=%s,
-                pod_url=%s,
-                updated_at=NOW()
-            WHERE id=%s
-        """, (actual_arrival_time, pod_url, trip_id))
-        conn.commit()
-        cursor.close()
-        conn.close()
+    return redirect("/trip-history")
 
-        return jsonify({"status": "success", "message": "Trip updated successfully"})
-    except Exception as e:
-        # return error message so you can debug if something else fails
-        return jsonify({"status": "error", "message": str(e)}), 500
+
 
 
 # ----------------------
