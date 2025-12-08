@@ -4,9 +4,76 @@
 
 <h2 class="mb-4 text-primary">🚚 Trip History Dashboard</h2>
 
+<!-- ✅ CLOSED VEHICLE POOL BUTTON -->
+<div class="mb-3 d-flex justify-content-end">
+    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#vehiclePoolModal">
+        🚘 Vehicle Pool
+    </button>
+</div>
+
+<!-- CLOSED VEHICLE POOL MODAL -->
+<!-- CLOSED VEHICLE POOL MODAL -->
+<div class="modal fade" id="vehiclePoolModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content shadow-lg">
+
+            <!-- Header -->
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    🚗 Vehicle Pool
+                </h5>
+                <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+
+            <!-- Body -->
+            <div class="modal-body" style="background-color: #f8f9fa;">
+
+                {% set ns = namespace(closed_vehicles=[]) %}
+
+                {% for t in trips %}
+                    {% if t.actual_arrival_time %}
+                        {% if t.vehicle_no not in ns.closed_vehicles %}
+                            {% set ns.closed_vehicles = ns.closed_vehicles + [t.vehicle_no] %}
+                        {% endif %}
+                    {% endif %}
+                {% endfor %}
+
+                {% if ns.closed_vehicles %}
+                    <ul class="list-group">
+                        {% for vehicle in ns.closed_vehicles %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center"
+                                style="background:white; border:1px solid #dc3545;">
+                                <strong class="text-dark">{{ vehicle }}</strong>
+                                <span class="badge bg-danger rounded-pill px-3 py-2">Closed</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-muted">No Vehicles in Closed Pool</p>
+                {% endif %}
+
+            </div>
+
+            <!-- Footer -->
+            <div class="modal-footer" style="background-color: #f8f9fa;">
+                <button class="btn btn-outline-danger" data-bs-dismiss="modal">
+                    Close
+                </button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+
+
+<!-- ================== END VEHICLE POOL MODAL ================== -->
+
+
+<!-- ================== FILTERS ================== -->
+
 <div class="controls-row">
 
-    <!-- Status Buttons -->
     <div class="row mb-4">
         <h5 class="mb-2">Filter by Status</h5>
         <div class="col-12 d-flex">
@@ -16,7 +83,6 @@
         </div>
     </div>
 
-    <!-- Text Filters -->
     <div class="row g-3 mb-3">
         <h5 class="mb-2">Search Filters</h5>
 
@@ -36,7 +102,6 @@
         </div>
     </div>
 
-    <!-- Date Filter -->
     <div class="row g-3">
         <div class="col-md-3">
             <label class="form-label">Created Date (Start)</label>
@@ -52,7 +117,10 @@
     </div>
 </div>
 
-<!-- Trip History Table -->
+---
+
+<!-- ================== TRIP TABLE ================== -->
+
 <div class="table-responsive mt-4">
     <table class="table table-bordered table-striped align-middle" id="tripTable">
         <thead class="table-dark">
@@ -104,9 +172,17 @@
             <td>{{ t.customer_details }}</td>
 
             <td>
-                {% if t.pod_url %}
-                <a href="{{ t.pod_url }}" target="_blank" class="text-success">View POD</a>
-                {% else %}N/A{% endif %}
+                {% if t.actual_arrival_time %}
+                    {% if t.pod_url == 'POD Recieved' %}
+                        <span class="badge bg-primary">POD Recieved</span>
+                    {% elif t.pod_url == 'POD Pending' %}
+                        <span class="badge bg-warning text-dark">POD Pending</span>
+                    {% else %}
+                        N/A
+                    {% endif %}
+                {% else %}
+                    N/A
+                {% endif %}
             </td>
 
             <td>{{ t.created_at }}</td>
@@ -138,8 +214,12 @@
                                     <label class="form-label fw-bold">Actual Arrival Time</label>
                                     <input type="datetime-local" name="actual_arrival_time" class="form-control" required>
 
-                                    <label class="form-label mt-3 fw-bold">POD URL</label>
-                                    <input type="url" name="pod_url" class="form-control" required>
+                                    <label class="form-label mt-3 fw-bold">POD Status</label>
+                                    <select name="pod_url" class="form-select" required>
+                                        <option value="" disabled selected>Select POD Status</option>
+                                        <option value="POD Recieved">POD Recieved</option>
+                                        <option value="POD Pending">POD Pending</option>
+                                    </select>
                                 </div>
 
                                 <div class="modal-footer">
@@ -159,6 +239,10 @@
     </table>
 </div>
 
+---
+
+<!-- ================== JAVASCRIPT FILTERS ================== -->
+
 <script>
 document.addEventListener("DOMContentLoaded", () => {
 
@@ -174,6 +258,15 @@ document.addEventListener("DOMContentLoaded", () => {
     let statusFilter = "all";
 
     function applyFilters() {
+
+        document.querySelectorAll('.controls-row .btn')
+            .forEach(btn => btn.classList.remove('btn-active'));
+
+        if (statusFilter === "all") document.getElementById("showAll").classList.add('btn-active');
+        if (statusFilter === "pending") document.getElementById("showPending").classList.add('btn-active');
+        if (statusFilter === "closed") document.getElementById("showClosed").classList.add('btn-active');
+
+
         rows.forEach(row => {
             const matchStatus = statusFilter === "all" || row.dataset.status === statusFilter;
             const matchCustomer = row.dataset.customer.includes(filters.customer.value.toLowerCase());
