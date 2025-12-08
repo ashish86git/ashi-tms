@@ -1,104 +1,184 @@
 {% extends "layout.html" %}
 {% block content %}
 
+<style>
+    :root {
+        --primary-red: #dc3545;
+        --dark-red: #bb2d3b;
+        --light-red: #ffe6e8;
+        --soft-bg: #fafafa;
+    }
+
+    .card-custom {
+        border-radius: 16px;
+        border: none;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        background: white;
+    }
+
+    .card-header-custom {
+        background: linear-gradient(135deg, var(--primary-red), var(--dark-red));
+        color: white;
+        border-radius: 16px 16px 0 0 !important;
+        padding: 12px 18px;
+        font-size: 15px;
+        font-weight: 600;
+    }
+
+    .summary-card {
+        border-radius: 16px;
+        padding: 22px;
+        text-align: center;
+        background: var(--light-red);
+        border-left: 6px solid var(--primary-red);
+        box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+    }
+
+    .summary-card h6 {
+        font-size: 15px;
+        color: #555;
+        margin-bottom: 6px;
+    }
+
+    .summary-card h3 {
+        font-size: 32px;
+        font-weight: bold;
+        margin: 0;
+        color: var(--dark-red);
+    }
+
+    .filter-card {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 20px;
+        border-left: 5px solid var(--primary-red);
+        box-shadow: 0 3px 10px rgba(0,0,0,0.05);
+    }
+
+    .btn-red {
+        background: var(--primary-red);
+        border: none;
+        color: white;
+    }
+    .btn-red:hover {
+        background: var(--dark-red);
+        color: white;
+    }
+</style>
+
 <div class="container py-4">
 
-    <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <div>
-            <h3 class="m-0">TMS Dashboard</h3>
-            <small class="text-muted">Overview of unique trips, vehicles & drivers</small>
-        </div>
+    <!-- Title -->
+    <div class="mb-4">
+        <h2 class="fw-bold" style="color: var(--primary-red);">TMS Dashboard</h2>
+        <p class="text-muted">Overview of unique trips, vehicles & drivers</p>
     </div>
 
     <!-- Filters -->
     <form method="get" action="{{ url_for('dashboard') }}">
-        <div class="row g-2 mb-4">
+        <div class="filter-card mb-4">
 
-            <div class="col-md-3">
-                <label class="form-label">Start Date</label>
-                <input type="date" name="start_date" value="{{ start_date }}" class="form-control">
-            </div>
+            <div class="row g-3">
 
-            <div class="col-md-3">
-                <label class="form-label">End Date</label>
-                <input type="date" name="end_date" value="{{ end_date }}" class="form-control">
-            </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">Start Date</label>
+                    <input type="date" name="start_date" value="{{ start_date }}" class="form-control">
+                </div>
 
-            <div class="col-md-3">
-                <label class="form-label">Vehicle</label>
-                <select name="vehicle" class="form-select">
-                    <option value="">All Vehicles</option>
-                    {% for v in vehicles %}
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">End Date</label>
+                    <input type="date" name="end_date" value="{{ end_date }}" class="form-control">
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">Vehicle</label>
+                    <select name="vehicle" class="form-select">
+                        <option value="">All Vehicles</option>
+                        {% for v in vehicles %}
                         <option value="{{ v[0] }}" {% if vehicle_filter == v[0] %}selected{% endif %}>{{ v[0] }}</option>
-                    {% endfor %}
-                </select>
-            </div>
+                        {% endfor %}
+                    </select>
+                </div>
 
-            <div class="col-md-3 d-flex align-items-end">
-                <button class="btn btn-primary w-50 me-2">Apply</button>
-                <a href="{{ url_for('dashboard') }}" class="btn btn-secondary w-50">Reset</a>
-            </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button class="btn btn-red w-50 me-2">
+                        Apply
+                    </button>
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-danger w-50">
+                        Reset
+                    </a>
+                </div>
 
+            </div>
         </div>
     </form>
 
     <!-- Summary Cards -->
     <div class="row g-3 mb-4">
+
         <div class="col-md-4">
-            <div class="card shadow-sm p-3 text-center">
-                <h6 class="text-muted">Pending Trips</h6>
-                <h3 class="text-warning">{{ pending }}</h3>
+            <div class="summary-card">
+                <h6>Pending Trips</h6>
+                <h3 style="color:#ff8800;">{{ pending }}</h3>
             </div>
         </div>
 
         <div class="col-md-4">
-            <div class="card shadow-sm p-3 text-center">
-                <h6 class="text-muted">Closed Trips</h6>
-                <h3 class="text-success">{{ closed }}</h3>
+            <div class="summary-card">
+                <h6>Closed Trips</h6>
+                <h3 style="color:#28a745;">{{ closed }}</h3>
             </div>
         </div>
 
         <div class="col-md-4">
-            <div class="card shadow-sm p-3 text-center">
-                <h6 class="text-muted">Total Trips</h6>
-                <h3 class="fw-bold">{{ pending + closed }}</h3>
+            <div class="summary-card">
+                <h6>Total Trips</h6>
+                <h3 style="color:var(--dark-red);">{{ pending + closed }}</h3>
             </div>
         </div>
+
     </div>
 
     <!-- Charts -->
-    <div class="row g-3">
+    <div class="row g-4">
 
-        <!-- Top 5 Vehicles by Unique Trips -->
+        <!-- Top Vehicles -->
         <div class="col-md-6">
-            <div class="card shadow-sm p-3 mb-4">
-                <h6 class="mb-3">Top 5 Vehicles by Unique Trips</h6>
-                <canvas id="vehicleChart" height="120"></canvas>
+            <div class="card card-custom">
+                <div class="card-header-custom">Top 5 Vehicles by Unique Trips</div>
+                <div class="p-3">
+                    <canvas id="vehicleChart" height="120"></canvas>
+                </div>
             </div>
         </div>
 
-        <!-- Daily Trip Trend -->
+        <!-- Daily Trend -->
         <div class="col-md-6">
-            <div class="card shadow-sm p-3 mb-4">
-                <h6 class="mb-3">Daily Trip Trend (Unique)</h6>
-                <canvas id="trendChart" height="120"></canvas>
+            <div class="card card-custom">
+                <div class="card-header-custom">Daily Trip Trend (Unique)</div>
+                <div class="p-3">
+                    <canvas id="trendChart" height="120"></canvas>
+                </div>
             </div>
         </div>
 
-        <!-- Top 10 Vehicles by Total Distance -->
+        <!-- Vehicle Distance -->
         <div class="col-md-6">
-            <div class="card shadow-sm p-3 mb-4">
-                <h6 class="mb-3">Top 10 Vehicles by Total Distance (KM)</h6>
-                <canvas id="distanceChart" height="120"></canvas>
+            <div class="card card-custom">
+                <div class="card-header-custom">Top 10 Vehicles by Total Distance (KM)</div>
+                <div class="p-3">
+                    <canvas id="distanceChart" height="120"></canvas>
+                </div>
             </div>
         </div>
 
-        <!-- Top 10 Drivers by Total Distance -->
+        <!-- Driver Distance -->
         <div class="col-md-6">
-            <div class="card shadow-sm p-3 mb-4">
-                <h6 class="mb-3">Top 10 Drivers by Total Distance (KM)</h6>
-                <canvas id="driverChart" height="120"></canvas>
+            <div class="card card-custom">
+                <div class="card-header-custom">Top 10 Drivers by Total Distance (KM)</div>
+                <div class="p-3">
+                    <canvas id="driverChart" height="120"></canvas>
+                </div>
             </div>
         </div>
 
@@ -108,88 +188,65 @@
 
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <script>
-    // -------------------------
-    // Vehicle Trip Count Chart (Top 5 Vehicles)
-    // -------------------------
     const vehicleLabels = {{ vehicle_labels | tojson }};
     const vehicleValues = {{ vehicle_values | tojson }};
-
-    new Chart(document.getElementById('vehicleChart'), {
+    new Chart(vehicleChart, {
         type: 'bar',
         data: {
             labels: vehicleLabels,
             datasets: [{
-                label: "Unique Trips",
+                label: "Trips",
                 data: vehicleValues,
-                backgroundColor: 'rgba(75, 192, 192, 0.6)',
-                borderColor: 'rgba(75, 192, 192, 1)',
-                borderWidth: 1
+                backgroundColor: '#dc3545'
             }]
         },
         options: { scales: { y: { beginAtZero: true } } }
     });
 
-    // -------------------------
-    // Daily Trip Trend Chart
-    // -------------------------
     const trendLabels = {{ trend_labels | tojson }};
     const trendValues = {{ trend_values | tojson }};
-
-    new Chart(document.getElementById('trendChart'), {
+    new Chart(trendChart, {
         type: 'line',
         data: {
             labels: trendLabels,
             datasets: [{
-                label: "Unique Trips Per Day",
+                label: "Daily Trips",
                 data: trendValues,
-                borderColor: 'rgba(255, 99, 132, 1)',
-                backgroundColor: 'rgba(255, 99, 132, 0.2)',
-                tension: 0.3,
-                fill: true,
-                borderWidth: 2
+                borderColor: '#dc3545',
+                backgroundColor: 'rgba(220,53,69,0.2)',
+                tension: 0.3
             }]
         },
         options: { scales: { y: { beginAtZero: true } } }
     });
 
-    // -------------------------
-    // Vehicle Total Distance Chart (Top 10)
-    // -------------------------
     const distanceLabels = {{ distance_labels | tojson }};
     const distanceValues = {{ distance_values | tojson }};
-
-    new Chart(document.getElementById('distanceChart'), {
+    new Chart(distanceChart, {
         type: 'bar',
         data: {
             labels: distanceLabels,
             datasets: [{
-                label: 'Total Distance (KM)',
+                label: "KM",
                 data: distanceValues,
-                backgroundColor: 'rgba(54, 162, 235, 0.6)',
-                borderColor: 'rgba(54, 162, 235, 1)',
-                borderWidth: 1
+                backgroundColor: '#bb2d3b'
             }]
         },
         options: { scales: { y: { beginAtZero: true } } }
     });
 
-    // -------------------------
-    // Driver Total Distance Chart (Top 10)
-    // -------------------------
     const driverLabels = {{ driver_labels | tojson }};
     const driverValues = {{ driver_values | tojson }};
-
-    new Chart(document.getElementById('driverChart'), {
+    new Chart(driverChart, {
         type: 'bar',
         data: {
             labels: driverLabels,
             datasets: [{
-                label: 'Total Distance (KM)',
+                label: "KM",
                 data: driverValues,
-                backgroundColor: 'rgba(255, 206, 86, 0.6)',
-                borderColor: 'rgba(255, 206, 86, 1)',
-                borderWidth: 1
+                backgroundColor: '#e35d6a'
             }]
         },
         options: { scales: { y: { beginAtZero: true } } }

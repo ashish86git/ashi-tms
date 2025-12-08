@@ -19,51 +19,78 @@
 
             <!-- Header -->
             <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title">
-                    🚗 Vehicle Pool
-                </h5>
+                <h5 class="modal-title">🚗 Vehicle Pool</h5>
                 <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
 
             <!-- Body -->
             <div class="modal-body" style="background-color: #f8f9fa;">
 
-                {% set ns = namespace(closed_vehicles=[]) %}
+                {% set ns = namespace(closed=[], intransit=[]) %}
 
+                <!-- Categorize Vehicles -->
                 {% for t in trips %}
-                    {% if t.actual_arrival_time %}
-                        {% if t.vehicle_no not in ns.closed_vehicles %}
-                            {% set ns.closed_vehicles = ns.closed_vehicles + [t.vehicle_no] %}
+                    {% if t.vehicle_no %}
+                        {% if t.actual_arrival_time %}
+                            {% if t.vehicle_no not in ns.closed %}
+                                {% set ns.closed = ns.closed + [t.vehicle_no] %}
+                            {% endif %}
+                        {% else %}
+                            {% if t.vehicle_no not in ns.intransit %}
+                                {% set ns.intransit = ns.intransit + [t.vehicle_no] %}
+                            {% endif %}
                         {% endif %}
                     {% endif %}
                 {% endfor %}
 
-                {% if ns.closed_vehicles %}
-                    <ul class="list-group">
-                        {% for vehicle in ns.closed_vehicles %}
+                <!-- In Transit Section -->
+                <h6 class="text-primary mb-2">🚧 In-Transit Vehicles</h6>
+                {% if ns.intransit %}
+                    <ul class="list-group mb-4">
+                        {% for vehicle in ns.intransit %}
                             <li class="list-group-item d-flex justify-content-between align-items-center"
-                                style="background:white; border:1px solid #dc3545;">
+                                style="background:#fff3cd; border:1px solid #ffca2c; opacity:0.7; cursor:not-allowed;">
                                 <strong class="text-dark">{{ vehicle }}</strong>
-                                <span class="badge bg-danger rounded-pill px-3 py-2">Closed</span>
+                                <span class="badge bg-warning text-dark rounded-pill px-3 py-2">
+                                    In Transit
+                                </span>
                             </li>
                         {% endfor %}
                     </ul>
                 {% else %}
-                    <p class="text-muted">No Vehicles in Closed Pool</p>
+                    <p class="text-muted">No Vehicles In Transit</p>
+                {% endif %}
+
+                <!-- Closed Vehicles Section -->
+                <h6 class="text-success mb-2">✅ Closed Vehicles</h6>
+                {% if ns.closed %}
+                    <ul class="list-group">
+                        {% for vehicle in ns.closed %}
+                            <a href="/trip-history?vehicle={{ vehicle }}" style="text-decoration:none;">
+                                <li class="list-group-item d-flex justify-content-between align-items-center"
+                                    style="background:white; border:1px solid #198754;">
+                                    <strong class="text-dark">{{ vehicle }}</strong>
+                                    <span class="badge bg-success rounded-pill px-3 py-2">Closed</span>
+                                </li>
+                            </a>
+
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-muted">No Vehicles Closed</p>
                 {% endif %}
 
             </div>
 
             <!-- Footer -->
             <div class="modal-footer" style="background-color: #f8f9fa;">
-                <button class="btn btn-outline-danger" data-bs-dismiss="modal">
-                    Close
-                </button>
+                <button class="btn btn-outline-danger" data-bs-dismiss="modal">Close</button>
             </div>
 
         </div>
     </div>
 </div>
+
 
 
 
