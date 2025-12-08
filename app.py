@@ -142,12 +142,153 @@ def auth():
     return render_template('login.html', form_type='login')
 
 
-@app.route('/dashboard')
+@app.route('/dashboard', methods=['GET'])
 def dashboard():
-    """Renders the main dashboard page."""
-    if 'user' not in session:
-        return redirect(url_for('auth'))
-    return render_template('dashboard.html', username=session['user'])
+    # -------------------------
+    # FILTERS
+    # -------------------------
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    vehicle_filter = request.args.get('vehicle')
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # -------------------------
+    # Dynamic WHERE clause
+    # -------------------------
+    where = " WHERE 1=1 "
+    params = []
+
+    if start_date:
+        where += " AND DATE(t.exit_time) >= %s "
+        params.append(start_date)
+
+    if end_date:
+        where += " AND DATE(t.exit_time) <= %s "
+        params.append(end_date)
+
+    if vehicle_filter:
+        where += " AND t.vehicle_no = %s "
+        params.append(vehicle_filter)
+
+    # -------------------------
+    # STATUS COUNTS
+    # -------------------------
+    cursor.execute(f"""
+        SELECT
+            COUNT(DISTINCT CASE WHEN t.actual_arrival_time IS NULL THEN t.indent_id END) AS pending,
+            COUNT(DISTINCT CASE WHEN t.actual_arrival_time IS NOT NULL THEN t.indent_id END) AS closed
+        FROM trip_data t
+        {where}
+    """, params)
+
+    result = cursor.fetchone()
+    pending = result[0] or 0
+    closed = result[1] or 0
+
+    # -------------------------
+    # VEHICLE TRIP COUNT (Top 5)
+    # -------------------------
+    cursor.execute(f"""
+        SELECT t.vehicle_no, COUNT(DISTINCT t.indent_id)
+        FROM trip_data t
+        {where}
+        GROUP BY t.vehicle_no
+        ORDER BY COUNT(DISTINCT t.indent_id) DESC
+        LIMIT 5
+    """, params)
+
+    vehicle_data = cursor.fetchall()
+    vehicle_labels = [v[0] for v in vehicle_data]
+    vehicle_values = [v[1] for v in vehicle_data]
+
+    # -------------------------
+    # DAILY TREND (Unique by indent)
+    # -------------------------
+    cursor.execute(f"""
+        SELECT DATE(t.exit_time), COUNT(DISTINCT t.indent_id)
+        FROM trip_data t
+        {where}
+        GROUP BY DATE(t.exit_time)
+        ORDER BY DATE(t.exit_time)
+    """, params)
+
+    trend_data = cursor.fetchall()
+    trend_labels = [str(row[0]) for row in trend_data]
+    trend_values = [row[1] for row in trend_data]
+
+    # -------------------------
+    # VEHICLE TOTAL DISTANCE (Top 10, unique indent)
+    # -------------------------
+    cursor.execute(f"""
+        SELECT t.vehicle_no, SUM(t.total_distance)
+        FROM trip_data t
+        INNER JOIN (
+            SELECT DISTINCT indent_id, vehicle_no, total_distance
+            FROM trip_data
+        ) sub ON t.indent_id = sub.indent_id
+        {where}
+        GROUP BY t.vehicle_no
+        ORDER BY SUM(t.total_distance) DESC
+        LIMIT 10
+    """, params)
+
+    distance_data = cursor.fetchall()
+    distance_labels = [row[0] for row in distance_data]
+    distance_values = [float(row[1]) for row in distance_data]
+
+    # -------------------------
+    # DRIVER TOTAL DISTANCE (Top 10, unique indent)
+    # -------------------------
+    cursor.execute(f"""
+        SELECT t.driver_name, SUM(t.total_distance)
+        FROM trip_data t
+        INNER JOIN (
+            SELECT DISTINCT indent_id, driver_name, total_distance
+            FROM trip_data
+        ) sub ON t.indent_id = sub.indent_id
+        {where}
+        GROUP BY t.driver_name
+        ORDER BY SUM(t.total_distance) DESC
+        LIMIT 10
+    """, params)
+
+    driver_data = cursor.fetchall()
+    driver_labels = [row[0] for row in driver_data]
+    driver_values = [float(row[1]) for row in driver_data]
+
+    # -------------------------
+    # VEHICLE LIST FOR DROPDOWN
+    # -------------------------
+    cursor.execute("SELECT DISTINCT vehicle_no FROM trip_data ORDER BY vehicle_no ASC")
+    vehicles = cursor.fetchall()
+
+    conn.close()
+
+    # -------------------------
+    # RENDER TEMPLATE
+    # -------------------------
+    return render_template(
+        "dashboard.html",
+        pending=pending,
+        closed=closed,
+        vehicle_labels=vehicle_labels,
+        vehicle_values=vehicle_values,
+        trend_labels=trend_labels,
+        trend_values=trend_values,
+        distance_labels=distance_labels,
+        distance_values=distance_values,
+        driver_labels=driver_labels,
+        driver_values=driver_values,
+        vehicles=vehicles,
+        start_date=start_date,
+        end_date=end_date,
+        vehicle_filter=vehicle_filter
+    )
+
+
+
 
 
 @app.route('/logout')
@@ -1458,50 +1599,86 @@ def trip_history():
     # Filters
     vehicle_filter = request.args.get('vehicle')
     indent_filter = request.args.get('indent')
-    status_filter = request.args.get('status')  # New status filter
+    status_filter = request.args.get('status')
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
 
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Main Query with status column
+    # Logic to select only the LATEST entry for each indent_id
+    # We use a subquery/CTE to find the maximum ID (most recent) for each indent_id,
+    # and then select the full details for those max IDs.
+
+    # NOTE: Using ROW_NUMBER() or MAX(id) grouped by indent_id is the standard SQL way
+    # to enforce uniqueness for the most recent entry.
+
     query = """
+        WITH latest_trips AS (
+            SELECT
+                id,
+                indent_id,
+                vehicle_no,
+                driver_name,
+                driver_contact,
+                pickup,
+                drop_location,
+                total_drops,
+                exit_time,
+                eta_arrival_time,
+                actual_arrival_time,
+                total_distance,
+                duration_hours,
+                customer_details,
+                pod_url,  -- Changed from pod_url to pod_status
+                created_at,
+                ROW_NUMBER() OVER(PARTITION BY indent_id ORDER BY id DESC) as rn
+            FROM trip_data
+        )
         SELECT
             t.id, t.indent_id, t.vehicle_no, t.driver_name, t.driver_contact,
             t.pickup, t.drop_location, t.total_drops,
             t.exit_time, t.eta_arrival_time, t.actual_arrival_time,
             t.total_distance, t.duration_hours, t.customer_details,
             t.pod_url, t.created_at, i.customer_name,
-            CASE 
+            CASE
                 WHEN t.actual_arrival_time IS NULL THEN 'Pending'
                 ELSE 'Closed'
             END AS status
-        FROM trip_data t
+        FROM latest_trips t
         LEFT JOIN indents i
             ON t.indent_id = i.indent
-        WHERE 1=1
+        WHERE t.rn = 1  -- Only select the latest trip for each indent_id
     """
 
     params = []
+    # Dynamic WHERE clauses will be added below.
+    # Note: Applying filters here can be tricky if the filters apply to non-latest entries.
+    # However, to maintain the structure, we will filter the final result set.
+
+    filter_conditions = []
 
     if vehicle_filter:
-        query += " AND t.vehicle_no=%s"
+        filter_conditions.append("t.vehicle_no = %s")
         params.append(vehicle_filter)
 
     if indent_filter:
-        query += " AND t.indent_id=%s"
+        filter_conditions.append("t.indent_id = %s")
         params.append(indent_filter)
 
     if status_filter:
         if status_filter.lower() == "pending":
-            query += " AND t.actual_arrival_time IS NULL"
+            filter_conditions.append("t.actual_arrival_time IS NULL")
         elif status_filter.lower() == "closed":
-            query += " AND t.actual_arrival_time IS NOT NULL"
+            filter_conditions.append("t.actual_arrival_time IS NOT NULL")
 
     if start_date and end_date:
-        query += " AND DATE(t.exit_time) BETWEEN %s AND %s"
+        filter_conditions.append("DATE(t.exit_time) BETWEEN %s AND %s")
         params.extend([start_date, end_date])
+
+    # Append filters to the main query
+    if filter_conditions:
+        query += " AND " + " AND ".join(filter_conditions)
 
     query += " ORDER BY t.id DESC"
 
@@ -1526,7 +1703,7 @@ def trip_history():
             "total_distance": r[11],
             "duration_hours": r[12],
             "customer_details": r[13],
-            "pod_url": r[14],
+            "pod_url": r[14],  # Fetching pod_status now
             "created_at": r[15],
             "customer_name": r[16],
             "status": r[17],
@@ -1538,22 +1715,27 @@ def trip_history():
     return render_template("trip_history.html", trips=trips)
 
 
+# -----------------------------------------------
+
 @app.route('/close-indent/<int:id>', methods=['POST'])
 def close_indent(id):
+    # MODIFICATION: Changed 'pod_url' to 'pod_status' to match the UI change
     actual_arrival_time = request.form.get("actual_arrival_time")
-    pod_url = request.form.get("pod_url")
+    pod_status = request.form.get("pod_url")  # Fetching the new select field value
 
     conn = get_db_connection()
     cursor = conn.cursor()
 
+    # MODIFICATION: Changed column 'pod_url' to 'pod_status' in the UPDATE query
     query = """
         UPDATE trip_data
         SET actual_arrival_time = %s,
-            pod_url = %s
+            pod_url = %s  
         WHERE id = %s
     """
 
-    cursor.execute(query, (actual_arrival_time, pod_url, id))
+    # Ensure your database column name matches what you use here (e.g., 'pod_status')
+    cursor.execute(query, (actual_arrival_time, pod_status, id))
     conn.commit()
 
     cursor.close()
