@@ -324,13 +324,33 @@
     <i class="bi bi-truck-front-fill"></i> TMS Portal
   </a>
   <div class="ms-auto d-flex align-items-center">
+
+    <!-- 🔽 Universal Data Selector -->
+    <select id="dataSelector" class="form-select form-select-sm me-3"
+            style="width: 200px; font-weight: 500;">
+        <option value="">Select Module</option>
+        <option value="def">DEF</option>
+        <option value="fleet">Fleet Master</option>
+        <option value="driver">Driver Master</option>
+        <option value="trip">Trip History</option>
+        <option value="orders">Orders</option>
+        <option value="maintenance">Vehicle Maintenance</option>
+        <option value="tyre">Tyre Management</option>
+        <option value="issue">Issue Management</option>
+    </select>
+
+    <!-- 🔍 Dynamic Search Box Will Load Here -->
+    <div id="dynamicSearchBox" class="me-3"></div>
+
     {% if session['user'] %}
       <span class="text-light me-3"><i class="bi bi-person-circle me-1"></i> {{ session['user'] }}</span>
       <a href="/logout" class="btn btn-outline-light btn-sm"><i class="bi bi-box-arrow-right"></i> Logout</a>
     {% else %}
       <a href="/auth" class="btn btn-outline-light btn-sm">Login</a>
     {% endif %}
-  </div>
+</div>
+
+
 </nav>
 
 <div class="sidebar" id="sidebarMenu">
@@ -550,6 +570,217 @@
   });
 
 </script>
+
+<script>
+    // -------------------------------------------------------------
+//  MODULE SELECTOR → Dynamic Search Box Loader
+// -------------------------------------------------------------
+document.getElementById("dataSelector").addEventListener("change", function () {
+    const module = this.value;
+    const box = document.getElementById("dynamicSearchBox");
+
+    if (!module) {
+        box.innerHTML = "";
+        return;
+    }
+
+    let html = "";
+
+    // 🔥 TRIP HISTORY MODULE
+    if (module === "trip") {
+        html = `
+            <div class="position-relative" style="width:260px;">
+                <input type="text" id="searchInput"
+                       class="form-control form-control-sm"
+                       placeholder="Search Indent ID / LR Number"
+                       onkeyup="fetchSuggestions()">
+
+                <div id="suggestionsBox"
+                     class="bg-white border mt-1 rounded shadow-sm position-absolute"
+                     style="z-index: 1000; max-height: 200px; width:100%; overflow-y:auto;">
+                </div>
+            </div>
+
+            <div id="tripDetailsBox" class="mt-3"></div>
+        `;
+    }
+
+    // Future - DEF, FLEET, DRIVER modules here...
+
+    box.innerHTML = html;
+});
+
+
+// -------------------------------------------------------------
+// SEARCH SUGGESTIONS FOR TRIP (Indent + LR No.)
+// -------------------------------------------------------------
+let typingTimer;
+let debounceDelay = 300;
+
+function fetchSuggestions() {
+    clearTimeout(typingTimer);
+
+    typingTimer = setTimeout(() => {
+
+        const query = document.getElementById("searchInput").value.trim();
+
+        if (query.length < 1) {
+            document.getElementById("suggestionsBox").innerHTML = "";
+            return;
+        }
+
+        fetch(`/search-trip-data?q=${encodeURIComponent(query)}`)
+            .then(res => res.json())
+            .then(data => {
+                let html = "";
+
+                if (data.length === 0) {
+                    html = `<div class="p-2 text-muted">No results found</div>`;
+                } else {
+                    data.forEach(row => {
+                        const lr = row.lr_numbers || "-";
+
+                        html += `
+                            <div class="p-2 suggestion-item"
+                                 style="cursor:pointer;"
+                                 onclick="loadTripDetails('${row.indent_id}')">
+                                <strong>${row.indent_id}</strong> - ${lr}
+                            </div>
+                        `;
+                    });
+                }
+
+                document.getElementById("suggestionsBox").innerHTML = html;
+            });
+
+    }, debounceDelay);
+}
+
+
+// -------------------------------------------------------------
+//  LOAD TRIP DETAILS (FULL INFO CARD)
+// -------------------------------------------------------------
+function loadTripDetails(indent_id) {
+    fetch(`/trip-details/${indent_id}`)
+        .then(res => res.json())
+        .then(data => {
+
+            document.getElementById("suggestionsBox").innerHTML = "";
+            document.getElementById("searchInput").value = indent_id;
+
+            let card = `
+                <div class="card shadow-sm p-3">
+                    <h5 class="mb-2">📌 Indent & Trip Timeline</h5>
+                    <hr>
+
+                    <p><strong>Indent ID:</strong> ${data.indent_id}</p>
+                    <p><strong>LR Number:</strong> ${data.lr_numbers}</p>
+                    <p><strong>Customer:</strong> ${data.customer_name || "-"}</p>
+
+                    <hr>
+                    <h5 class="mb-2">⏱ Trip Timeline</h5>
+
+                    <p><strong>Created:</strong> ${data.created_at || "-"}</p>
+                    <p><strong>Loading Start:</strong> ${data.loading_start || "-"}</p>
+                    <p><strong>Loading End:</strong> ${data.loading_end || "-"}</p>
+                    <p><strong>Exit Time:</strong> ${data.exit_time || "-"}</p>
+                    <p><strong>Actual Arrival:</strong> ${data.actual_arrival || "-"}</p>
+                    <p><strong>Trip Close:</strong> ${data.trip_close || "-"}</p>
+                </div>
+            `;
+
+            document.getElementById("tripDetailsBox").innerHTML = card;
+        });
+}
+
+
+</script>
+
+<script>
+// 🔄 Dynamic Module Search Box Loader
+document.getElementById("dataSelector").addEventListener("change", function () {
+    const module = this.value;
+    const box = document.getElementById("dynamicSearchBox");
+
+    if (!module) {
+        box.innerHTML = "";
+        return;
+    }
+
+    let html = "";
+
+    if (module === "trip") {
+        html = `
+            <div style="position: relative;">
+                <input type="text" id="searchInput" class="form-control form-control-sm"
+                    placeholder="Search Indent ID / LR Number"
+                    onkeyup="fetchSuggestions()">
+
+                <div id="suggestionsBox"
+                    class="bg-white border mt-1 rounded shadow-sm position-absolute"
+                    style="z-index: 10000; max-height: 220px; overflow-y: auto; width: 260px;">
+                </div>
+            </div>
+        `;
+    }
+
+    box.innerHTML = html;
+});
+
+
+// 🔍 Fetch Suggestions
+function fetchSuggestions() {
+    const query = document.getElementById("searchInput")?.value;
+
+    if (!query || query.length < 1) {
+        document.getElementById("suggestionsBox").innerHTML = "";
+        return;
+    }
+
+    fetch(`/search-trip-data?q=${query}`)
+        .then(res => res.json())
+        .then(data => {
+            let html = "";
+
+            if (data.length === 0) {
+                html = `<div class="p-2 text-muted">No results found</div>`;
+            } else {
+                data.forEach(row => {
+                    html += `
+                        <div class="p-2 suggestion-item"
+                             style="cursor:pointer;"
+                             onclick="loadTripDetails('${row.indent_id}')">
+                             ${row.indent_id} - ${row.lr_number}
+                        </div>`;
+                });
+            }
+
+            document.getElementById("suggestionsBox").innerHTML = html;
+        });
+}
+
+
+// 🚀 Redirect to Trip Details Page
+function loadTripDetails(indent_id) {
+    window.location.href = `/trip-details/${indent_id}`;
+}
+
+
+// 📱 Sidebar Toggle for Mobile
+document.getElementById("toggleSidebar")?.addEventListener("click", function () {
+    document.getElementById("sidebarMenu").classList.toggle("show");
+    document.getElementById("sidebarBackdrop").style.display =
+        document.getElementById("sidebarMenu").classList.contains("show") ? "block" : "none";
+});
+
+// Click outside to close
+document.getElementById("sidebarBackdrop")?.addEventListener("click", function () {
+    document.getElementById("sidebarMenu").classList.remove("show");
+    this.style.display = "none";
+});
+</script>
+
+
 
 </body>
 </html>

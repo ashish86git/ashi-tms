@@ -1,0 +1,82 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<h2 class="text-primary mb-3">📊 Trip Flow (Node Wise with Sub-Nodes)</h2>
+
+<div id="tripGraph" style="height:550px; border:1px solid #ddd;"></div>
+
+{% if table %}
+<div class="table-responsive mt-4">{{ table|safe }}</div>
+{% endif %}
+
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+    const indentId = "{{ indent_id }}";
+    if(!indentId){ console.error("Indent ID missing"); return; }
+
+    fetch(`/api-trip-details/${indentId}`)
+        .then(res => res.json())
+        .then(data => {
+            if(data.error){
+                alert("No trip data found");
+                return;
+            }
+
+            const nodes = [
+                {
+                    id:1, shape:"box", color:"#198754", font:{multi:true}, margin:10,
+                    label:`📥 RECEIVED\nTime: ${data.received_time || "-"}`
+                },
+                {
+                    id:2, shape:"box", color:"#0d6efd", font:{multi:true}, margin:10,
+                    label:`🟦 LOADING\nTime: ${data.loading_time || "-"}`
+                },
+                {
+                    id:3, shape:"box", color:"#0d6efd", font:{multi:true}, margin:10,
+                    label:`🅿️ PARKING\nTime: ${data.parking_time || "-"}`
+                },
+                {
+                    id:4, shape:"box", color:"#0d6efd", font:{multi:true}, margin:10,
+                    label:`🏭 EXIT YARD\nTime: ${data.exit_time || "-"}`
+                },
+                {
+                    id:5, shape:"box", color:"#ffc107", font:{multi:true}, margin:10,
+                    label:`🚚 IN TRANSIT\nDistance: ${data.total_distance || "-"} km\nDuration: ${data.duration_hours || "-"} hrs`
+                },
+                {
+                    id:6, shape:"box", color:"#dc3545", font:{multi:true}, margin:10,
+                    label:`📍 DROP\nETA: ${data.eta_arrival_time || "-"}\nActual: ${data.actual_arrival_time || "-"} ✅`,
+                    title:"Thank you! ✅"
+                }
+            ];
+
+            const edges = [
+                {from:1, to:2, arrows:"to", label:"Received → Loading"},
+                {from:2, to:3, arrows:"to", label:"Loading → Parking"},
+                {from:3, to:4, arrows:"to", label:"Parking → Exit"},
+                {from:4, to:5, arrows:"to", label:"Exit → Transit"},
+                {from:5, to:6, arrows:"to", label:"Transit → Drop"}
+            ];
+
+            const container = document.getElementById("tripGraph");
+            new vis.Network(container, {nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges)}, {
+                layout:{hierarchical:{enabled:true,direction:"LR",levelSeparation:120,nodeSpacing:180}},
+                physics:false,
+                nodes:{widthConstraint:{maximum:250}},
+                edges:{arrows:{to:{enabled:true,scaleFactor:1}}, smooth:{type:"cubicBezier"}, font:{align:"middle"}},
+                interaction:{hover:true, tooltipDelay:100}
+            });
+
+        })
+        .catch(err=>{
+            console.error("API fetch error:", err);
+            alert("Error loading trip graph");
+        });
+
+});
+</script>
+
+{% endblock %}
