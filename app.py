@@ -574,7 +574,17 @@ def update_status():
     conn = get_db_connection()
     cur = conn.cursor()
 
-    if status == 'loading':
+    # -------------------------
+    # ⭐ NEW: Vehicle Received
+    # -------------------------
+    if status == 'received':
+        cur.execute("""
+            UPDATE indents
+            SET received_time = %s, status = %s
+            WHERE indent = %s AND vehicle_number = %s
+        """, (timestamp, 'received', indent, vehicle))
+
+    elif status == 'loading':
         cur.execute("""
             UPDATE indents
             SET loading_time = %s, status = %s
@@ -602,6 +612,7 @@ def update_status():
     return jsonify({'success': True, 'timestamp': timestamp})
 
 
+
 @app.route('/get_status')
 def get_status():
     indent = request.args.get('indent')
@@ -611,7 +622,7 @@ def get_status():
     cur = conn.cursor()
 
     cur.execute("""
-        SELECT loading_time, parking_time, exit_time, status
+        SELECT received_time, loading_time, parking_time, exit_time, status
         FROM indents
         WHERE indent = %s AND vehicle_number = %s
         LIMIT 1
@@ -623,13 +634,15 @@ def get_status():
 
     if row:
         return jsonify({
-            'loading_time': row[0].strftime('%Y-%m-%d %H:%M:%S') if row[0] else None,
-            'parking_time': row[1].strftime('%Y-%m-%d %H:%M:%S') if row[1] else None,
-            'exit_time': row[2].strftime('%Y-%m-%d %H:%M:%S') if row[2] else None,
-            'status': row[3]
+            'received_time': row[0].strftime('%Y-%m-%d %H:%M:%S') if row[0] else None,
+            'loading_time': row[1].strftime('%Y-%m-%d %H:%M:%S') if row[1] else None,
+            'parking_time': row[2].strftime('%Y-%m-%d %H:%M:%S') if row[2] else None,
+            'exit_time': row[3].strftime('%Y-%m-%d %H:%M:%S') if row[3] else None,
+            'status': row[4]
         })
     else:
         return jsonify({})
+
 
 
 
@@ -703,11 +716,12 @@ def def_page():
                         indent_date, indent, allocation_date, customer_name, "range",
                         pickup_location, location, vehicle_number, vehicle_model,
                         vehicle_based, lr_no, material, load_per_bucket, no_of_buckets,
-                        t_load, pod_received, freight_tiger_number, freight_tiger_month,
+                        t_load, pod_received, freight_tiger_number, freight_tiger_month, received_time,
                         loading_time, parking_time, exit_time,
                         driver_name, driver_contact
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+            %s, %s, %s, %s, %s, %s)
                 """, (
                     indent_date,  # 1
                     indent_number,  # 2
@@ -729,9 +743,10 @@ def def_page():
                     ft_month,  # 18
                     None,  # 19
                     None,  # 20
-                    None,  # 21
-                    driver_name,  # 22 NEW
-                    driver_contact  # 23 NEW
+                    None,   #21
+                    None,   # 22
+                    driver_name,  # 23 NEW
+                    driver_contact  # 24 NEW
                 ))
 
             conn.commit()
@@ -1606,13 +1621,7 @@ def trip_history():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Logic to select only the LATEST entry for each indent_id
-    # We use a subquery/CTE to find the maximum ID (most recent) for each indent_id,
-    # and then select the full details for those max IDs.
-
-    # NOTE: Using ROW_NUMBER() or MAX(id) grouped by indent_id is the standard SQL way
-    # to enforce uniqueness for the most recent entry.
-
+    # LATEST ENTRY PER INDENT LOGIC — AS-IS
     query = """
         WITH latest_trips AS (
             SELECT
@@ -1630,9 +1639,11 @@ def trip_history():
                 total_distance,
                 duration_hours,
                 customer_details,
-                pod_url,  -- Changed from pod_url to pod_status
+                pod_url,
                 created_at,
-                ROW_NUMBER() OVER(PARTITION BY indent_id ORDER BY id DESC) as rn
+                ROW_NUMBER() OVER(
+                    PARTITION BY indent_id ORDER BY id DESC
+                ) AS rn
             FROM trip_data
         )
         SELECT
@@ -1640,7 +1651,9 @@ def trip_history():
             t.pickup, t.drop_location, t.total_drops,
             t.exit_time, t.eta_arrival_time, t.actual_arrival_time,
             t.total_distance, t.duration_hours, t.customer_details,
-            t.pod_url, t.created_at, i.customer_name,
+            t.pod_url, t.created_at,
+            i.customer_name,
+            i.lr_no,            -- ✅ LR numbers added
             CASE
                 WHEN t.actual_arrival_time IS NULL THEN 'Pending'
                 ELSE 'Closed'
@@ -1648,14 +1661,10 @@ def trip_history():
         FROM latest_trips t
         LEFT JOIN indents i
             ON t.indent_id = i.indent
-        WHERE t.rn = 1  -- Only select the latest trip for each indent_id
+        WHERE t.rn = 1
     """
 
     params = []
-    # Dynamic WHERE clauses will be added below.
-    # Note: Applying filters here can be tricky if the filters apply to non-latest entries.
-    # However, to maintain the structure, we will filter the final result set.
-
     filter_conditions = []
 
     if vehicle_filter:
@@ -1676,7 +1685,6 @@ def trip_history():
         filter_conditions.append("DATE(t.exit_time) BETWEEN %s AND %s")
         params.extend([start_date, end_date])
 
-    # Append filters to the main query
     if filter_conditions:
         query += " AND " + " AND ".join(filter_conditions)
 
@@ -1703,10 +1711,11 @@ def trip_history():
             "total_distance": r[11],
             "duration_hours": r[12],
             "customer_details": r[13],
-            "pod_url": r[14],  # Fetching pod_status now
+            "pod_url": r[14],
             "created_at": r[15],
             "customer_name": r[16],
-            "status": r[17],
+            "lr_no": r[17],        # ✅ LR numbers coming here
+            "status": r[18]
         })
 
     cursor.close()
@@ -1837,6 +1846,163 @@ def get_path(indent_id):
     conn.close()
 
     return jsonify({"points": points})
+
+@app.route("/search-trip-data")
+def search_trip_data():
+    q = request.args.get("q", "").strip()
+    if not q:
+        return jsonify([])
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    query = """
+        SELECT indent, lr_no
+        FROM indents
+        WHERE indent ILIKE %s OR lr_no ILIKE %s
+        ORDER BY indent DESC
+        LIMIT 500
+    """
+    cursor.execute(query, (f"%{q}%", f"%{q}%"))
+    rows = cursor.fetchall()
+
+    results = [{"indent_id": r[0], "lr_number": r[1]} for r in rows]
+
+    cursor.close()
+    conn.close()
+    return jsonify(results)
+
+# -------------------------------------------------
+# TRIP DETAILS PAGE (TABLE)
+# -------------------------------------------------
+@app.route("/trip-details/<path:indent_id>")
+def trip_details_json(indent_id):
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    query = """
+        WITH latest_trip AS (
+            SELECT *,
+                   ROW_NUMBER() OVER(PARTITION BY indent_id ORDER BY id DESC) AS rn
+            FROM trip_data
+        )
+        SELECT 
+            t.id, t.indent_id, t.vehicle_no, t.driver_name, t.driver_contact,
+            t.pickup, t.drop_location, t.total_drops, t.exit_time,
+            t.eta_arrival_time, t.actual_arrival_time, t.total_distance,
+            t.duration_hours, t.customer_details, t.pod_url, t.created_at,
+            i.customer_name, i.lr_no, i.indent_date, i.allocation_date,
+            i.vehicle_model, i.vehicle_based, i.material
+        FROM latest_trip t
+        LEFT JOIN indents i ON t.indent_id = i.indent
+        WHERE t.rn = 1 AND t.indent_id = %s
+    """
+
+    cursor.execute(query, (indent_id,))
+    row = cursor.fetchone()
+
+    cursor.close()
+    conn.close()
+
+    if not row:
+        return render_template("trip_details.html", table="<h4>No Data Found</h4>")
+
+    columns = [
+        "trip_id", "indent_id", "vehicle_no", "driver_name", "driver_contact",
+        "pickup", "drop_location", "total_drops", "exit_time",
+        "eta_arrival_time", "actual_arrival_time", "total_distance",
+        "duration_hours", "customer_details", "pod_url", "created_at",
+        "customer_name", "lr_no", "indent_date", "allocation_date",
+        "vehicle_model", "vehicle_based", "material"
+    ]
+
+    df = pd.DataFrame([row], columns=columns)
+
+    html_table = df.to_html(
+        classes="table table-bordered table-striped",
+        index=False,
+        justify="center"
+    )
+
+    return render_template(
+        "trip_details.html",
+        table=html_table,
+        indent_id=indent_id
+    )
+
+# -------------------------------------------------
+# API : TRIP DETAILS JSON (SAME LOGIC)
+# -------------------------------------------------
+@app.route("/api-trip-details/<path:indent_id>")
+def trip_details_api(indent_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    query = """
+        WITH latest_trip AS (
+            SELECT *,
+                   ROW_NUMBER() OVER(PARTITION BY indent_id ORDER BY id DESC) AS rn
+            FROM trip_data
+        )
+        SELECT 
+            t.id, t.indent_id, t.vehicle_no, t.driver_name, t.driver_contact,
+            t.pickup, t.drop_location, t.total_drops, t.exit_time,
+            t.eta_arrival_time, t.actual_arrival_time, t.total_distance,
+            t.duration_hours, t.customer_details, t.pod_url, t.created_at,
+            i.customer_name, i.lr_no, i.indent_date, i.allocation_date,
+            i.pickup_location, i.location,
+            i.vehicle_model, i.vehicle_based, i.material,
+            i.received_time, i.loading_time, i.parking_time
+        FROM latest_trip t
+        LEFT JOIN indents i ON t.indent_id = i.indent
+        WHERE t.rn = 1 AND t.indent_id = %s
+    """
+
+    cursor.execute(query, (indent_id,))
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    if not row:
+        return jsonify({"error":"No data found"}),404
+
+    data = {
+        "trip_id": row[0],
+        "indent_id": row[1],
+        "vehicle_no": row[2],
+        "driver_name": row[3],
+        "driver_contact": row[4],
+        "pickup": row[5],
+        "drop_location": row[6],
+        "total_drops": row[7],
+        "exit_time": row[8],
+        "eta_arrival_time": row[9],
+        "actual_arrival_time": row[10],
+        "total_distance": row[11],
+        "duration_hours": row[12],
+        "customer_details": row[13],
+        "pod_url": row[14],
+        "created_at": row[15],
+        "customer_name": row[16],
+        "lr_no": row[17],
+        "indent_date": row[18],
+        "allocation_date": row[19],
+        "pickup_location_indent": row[20],
+        "drop_location_indent": row[21],
+        "vehicle_model": row[22],
+        "vehicle_based": row[23],
+        "material": row[24],
+        "received_time": row[25],
+        "loading_time": row[26],
+        "parking_time": row[27]
+    }
+
+    return jsonify(data)
+
+
+# -------------------------------------------------
+
 
 if __name__ == '__main__':
     app.run(debug=True)
