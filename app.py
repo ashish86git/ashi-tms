@@ -2,6 +2,8 @@ from flask import Flask, render_template, request, redirect, url_for, session, s
 import pandas as pd
 import os
 import io
+from urllib.parse import unquote
+
 from ortools.constraint_solver import routing_enums_pb2, pywrapcp
 from decimal import Decimal, InvalidOperation
 from collections import defaultdict
@@ -1638,6 +1640,7 @@ def trip_history():
                 actual_arrival_time,
                 total_distance,
                 duration_hours,
+                loading_unloading_time,     -- ✅ ADDED
                 customer_details,
                 pod_url,
                 created_at,
@@ -1650,10 +1653,12 @@ def trip_history():
             t.id, t.indent_id, t.vehicle_no, t.driver_name, t.driver_contact,
             t.pickup, t.drop_location, t.total_drops,
             t.exit_time, t.eta_arrival_time, t.actual_arrival_time,
-            t.total_distance, t.duration_hours, t.customer_details,
+            t.total_distance, t.duration_hours,
+            t.loading_unloading_time,      -- ✅ ADDED
+            t.customer_details,
             t.pod_url, t.created_at,
             i.customer_name,
-            i.lr_no,            -- ✅ LR numbers added
+            i.lr_no,
             CASE
                 WHEN t.actual_arrival_time IS NULL THEN 'Pending'
                 ELSE 'Closed'
@@ -1710,12 +1715,13 @@ def trip_history():
             "actual_arrival_time": r[10],
             "total_distance": r[11],
             "duration_hours": r[12],
-            "customer_details": r[13],
-            "pod_url": r[14],
-            "created_at": r[15],
-            "customer_name": r[16],
-            "lr_no": r[17],        # ✅ LR numbers coming here
-            "status": r[18]
+            "loading_unloading_time": r[13],   # ✅ ADDED
+            "customer_details": r[14],
+            "pod_url": r[15],
+            "created_at": r[16],
+            "customer_name": r[17],
+            "lr_no": r[18],
+            "status": r[19]
         })
 
     cursor.close()
@@ -1724,29 +1730,35 @@ def trip_history():
     return render_template("trip_history.html", trips=trips)
 
 
+
 # -----------------------------------------------
 
 @app.route('/close-indent/<int:id>', methods=['POST'])
 def close_indent(id):
-    # MODIFICATION: Changed 'pod_url' to 'pod_status' to match the UI change
     actual_arrival_time = request.form.get("actual_arrival_time")
-    pod_status = request.form.get("pod_url")  # Fetching the new select field value
+    pod_status = request.form.get("pod_url")
+
+    # ✅ NEW INPUT (Hours:Minutes)
+    loading_unloading_time = request.form.get("loading_unloading_time")
 
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # MODIFICATION: Changed column 'pod_url' to 'pod_status' in the UPDATE query
+    # ✅ ONLY UPDATE QUERY EXTENDED (NO LOGIC CHANGE)
     query = """
         UPDATE trip_data
         SET actual_arrival_time = %s,
-            pod_url = %s  
+            pod_url = %s,
+            loading_unloading_time = %s
         WHERE id = %s
     """
 
-    # Ensure your database column name matches what you use here (e.g., 'pod_status')
-    cursor.execute(query, (actual_arrival_time, pod_status, id))
-    conn.commit()
+    cursor.execute(
+        query,
+        (actual_arrival_time, pod_status, loading_unloading_time, id)
+    )
 
+    conn.commit()
     cursor.close()
     conn.close()
 
@@ -1878,6 +1890,8 @@ def search_trip_data():
 @app.route("/trip-details/<path:indent_id>")
 def trip_details_json(indent_id):
 
+    indent_id = unquote(indent_id)   # ✅ SAFE FIX
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -1893,7 +1907,8 @@ def trip_details_json(indent_id):
             t.eta_arrival_time, t.actual_arrival_time, t.total_distance,
             t.duration_hours, t.customer_details, t.pod_url, t.created_at,
             i.customer_name, i.lr_no, i.indent_date, i.allocation_date,
-            i.vehicle_model, i.vehicle_based, i.material
+            i.vehicle_model, i.vehicle_based, i.material,
+            t.loading_unloading_time
         FROM latest_trip t
         LEFT JOIN indents i ON t.indent_id = i.indent
         WHERE t.rn = 1 AND t.indent_id = %s
@@ -1914,7 +1929,8 @@ def trip_details_json(indent_id):
         "eta_arrival_time", "actual_arrival_time", "total_distance",
         "duration_hours", "customer_details", "pod_url", "created_at",
         "customer_name", "lr_no", "indent_date", "allocation_date",
-        "vehicle_model", "vehicle_based", "material"
+        "vehicle_model", "vehicle_based", "material",
+        "loading_unloading_time"
     ]
 
     df = pd.DataFrame([row], columns=columns)
@@ -1931,11 +1947,17 @@ def trip_details_json(indent_id):
         indent_id=indent_id
     )
 
+
+
+
 # -------------------------------------------------
 # API : TRIP DETAILS JSON (SAME LOGIC)
 # -------------------------------------------------
 @app.route("/api-trip-details/<path:indent_id>")
 def trip_details_api(indent_id):
+
+    indent_id = unquote(indent_id)   # ✅ SAFE FIX
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -1953,7 +1975,8 @@ def trip_details_api(indent_id):
             i.customer_name, i.lr_no, i.indent_date, i.allocation_date,
             i.pickup_location, i.location,
             i.vehicle_model, i.vehicle_based, i.material,
-            i.received_time, i.loading_time, i.parking_time
+            i.received_time, i.loading_time, i.parking_time,
+            t.loading_unloading_time
         FROM latest_trip t
         LEFT JOIN indents i ON t.indent_id = i.indent
         WHERE t.rn = 1 AND t.indent_id = %s
@@ -1961,11 +1984,12 @@ def trip_details_api(indent_id):
 
     cursor.execute(query, (indent_id,))
     row = cursor.fetchone()
+
     cursor.close()
     conn.close()
 
     if not row:
-        return jsonify({"error":"No data found"}),404
+        return jsonify({"error": "No data found"}), 404
 
     data = {
         "trip_id": row[0],
@@ -1995,11 +2019,19 @@ def trip_details_api(indent_id):
         "material": row[24],
         "received_time": row[25],
         "loading_time": row[26],
-        "parking_time": row[27]
+        "parking_time": row[27],
+        "loading_unloading_time": row[28]
     }
 
     return jsonify(data)
 
+
+
+from datetime import timezone, timedelta
+def to_ist(dt):
+    if not dt:
+        return None
+    return (dt + timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d %H:%M:%S")
 
 # -------------------------------------------------
 
