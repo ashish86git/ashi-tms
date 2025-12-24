@@ -4,31 +4,25 @@
 
 <h2 class="mb-4 text-primary">🚚 Trip History Dashboard</h2>
 
-<!-- ✅ CLOSED VEHICLE POOL BUTTON -->
+<!-- VEHICLE POOL BUTTON -->
 <div class="mb-3 d-flex justify-content-end">
     <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#vehiclePoolModal">
         🚘 Vehicle Pool
     </button>
 </div>
 
-<!-- CLOSED VEHICLE POOL MODAL -->
-<!-- CLOSED VEHICLE POOL MODAL -->
+<!-- ================= VEHICLE POOL MODAL ================= -->
 <div class="modal fade" id="vehiclePoolModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-scrollable">
         <div class="modal-content shadow-lg">
-
-            <!-- Header -->
             <div class="modal-header bg-danger text-white">
                 <h5 class="modal-title">🚗 Vehicle Pool</h5>
                 <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
 
-            <!-- Body -->
             <div class="modal-body" style="background-color: #f8f9fa;">
-
                 {% set ns = namespace(closed=[], intransit=[]) %}
 
-                <!-- Categorize Vehicles -->
                 {% for t in trips %}
                     {% if t.vehicle_no %}
                         {% if t.actual_arrival_time %}
@@ -43,7 +37,6 @@
                     {% endif %}
                 {% endfor %}
 
-                <!-- In Transit Section -->
                 <h6 class="text-primary mb-2">🚧 In-Transit Vehicles</h6>
                 {% if ns.intransit %}
                     <ul class="list-group mb-4">
@@ -61,7 +54,6 @@
                     <p class="text-muted">No Vehicles In Transit</p>
                 {% endif %}
 
-                <!-- Closed Vehicles Section -->
                 <h6 class="text-success mb-2">✅ Closed Vehicles</h6>
                 {% if ns.closed %}
                     <ul class="list-group">
@@ -73,32 +65,21 @@
                                     <span class="badge bg-success rounded-pill px-3 py-2">Closed</span>
                                 </li>
                             </a>
-
                         {% endfor %}
                     </ul>
                 {% else %}
                     <p class="text-muted">No Vehicles Closed</p>
                 {% endif %}
-
             </div>
 
-            <!-- Footer -->
             <div class="modal-footer" style="background-color: #f8f9fa;">
                 <button class="btn btn-outline-danger" data-bs-dismiss="modal">Close</button>
             </div>
-
         </div>
     </div>
 </div>
 
-
-
-
-<!-- ================== END VEHICLE POOL MODAL ================== -->
-
-
-<!-- ================== FILTERS ================== -->
-
+<!-- ================= FILTERS ================= -->
 <div class="controls-row">
 
     <div class="row mb-4">
@@ -127,9 +108,14 @@
             <label class="form-label">Indent ID</label>
             <input type="text" id="indentFilter" class="form-control" placeholder="Search indent">
         </div>
+
+        <div class="col-md-3">
+            <label class="form-label">LR Number</label>
+            <input type="text" id="lrFilter" class="form-control" placeholder="Search LR number">
+        </div>
     </div>
 
-    <div class="row g-3">
+    <div class="row g-3 mb-3">
         <div class="col-md-3">
             <label class="form-label">Created Date (Start)</label>
             <input type="date" id="startDateFilter" class="form-control">
@@ -138,138 +124,149 @@
             <label class="form-label">Created Date (End)</label>
             <input type="date" id="endDateFilter" class="form-control">
         </div>
+
         <div class="col-md-6 d-flex align-items-end justify-content-end">
             <button id="clearFilters" class="btn btn-secondary">Clear All Filters</button>
         </div>
     </div>
+
+    <div class="row mb-3">
+        <div class="col-12 d-flex justify-content-end">
+            <button id="exportExcel" class="btn btn-outline-primary me-2">Export Excel</button>
+            <button id="exportCSV" class="btn btn-outline-success">Export CSV</button>
+        </div>
+    </div>
 </div>
 
----
-
-<!-- ================== TRIP TABLE ================== -->
-
+<!-- ================= TRIP TABLE ================= -->
 <div class="table-responsive mt-4">
-    <table class="table table-bordered table-striped align-middle" id="tripTable">
-        <thead class="table-dark">
-        <tr>
-            <th>ID</th>
-            <th>Indent ID</th>
-            <th>Customer Name</th>
-            <th>Vehicle</th>
-            <th>Driver</th>
-            <th>Contact</th>
-            <th>Pickup</th>
-            <th>Drop</th>
-            <th>Drops</th>
-            <th>Exit Time</th>
-            <th>ETA Arrival</th>
-            <th>Actual Arrival</th>
-            <th>Distance</th>
-            <th>Duration</th>
-            <th>Customer Details</th>
-            <th>POD</th>
-            <th>Created At</th>
-            <th>Action</th>
-        </tr>
-        </thead>
+<table class="table table-bordered table-striped align-middle" id="tripTable">
+<thead class="table-dark">
+<tr>
+    <th>ID</th>
+    <th>Indent ID</th>
+    <th>Customer Name</th>
+    <th>Vehicle</th>
+    <th>Driver</th>
+    <th>Contact</th>
+    <th>Pickup</th>
+    <th>Drop</th>
+    <th>Drops</th>
+    <th>Exit Time</th>
+    <th>ETA Arrival</th>
+    <th>Actual Arrival</th>
+    <th>LR Number</th>
 
-        <tbody>
-        {% for t in trips %}
-        <tr
-            data-status="{% if t.actual_arrival_time %}closed{% else %}pending{% endif %}"
-            data-indent="{{ t.indent_id|lower }}"
-            data-vehicle="{{ t.vehicle_no|lower }}"
-            data-customer="{{ t.customer_name|lower }}"
-            data-created="{{ t.created_at.strftime('%Y-%m-%d') if t.created_at else '' }}"
-        >
-            <td>{{ t.id }}</td>
-            <td>{{ t.indent_id }}</td>
-            <td>{{ t.customer_name }}</td>
-            <td>{{ t.vehicle_no }}</td>
-            <td>{{ t.driver_name }}</td>
-            <td>{{ t.driver_contact }}</td>
-            <td>{{ t.pickup }}</td>
-            <td>{{ t.drop_location }}</td>
-            <td>{{ t.total_drops }}</td>
-            <td>{{ t.exit_time }}</td>
-            <td>{{ t.eta_arrival_time }}</td>
-            <td>{{ t.actual_arrival_time if t.actual_arrival_time else "-" }}</td>
-            <td>{{ t.total_distance }}</td>
-            <td>{{ t.duration_hours }}</td>
-            <td>{{ t.customer_details }}</td>
+    <!-- ✅ ONLY NEW COLUMN -->
+    <th>Loading / Unloading Time</th>
 
-            <td>
-                {% if t.actual_arrival_time %}
-                    {% if t.pod_url == 'POD Recieved' %}
-                        <span class="badge bg-primary">POD Recieved</span>
-                    {% elif t.pod_url == 'POD Pending' %}
-                        <span class="badge bg-warning text-dark">POD Pending</span>
-                    {% else %}
-                        N/A
-                    {% endif %}
-                {% else %}
-                    N/A
-                {% endif %}
-            </td>
+    <th>Distance</th>
+    <th>Duration</th>
+    <th>Customer Details</th>
+    <th>POD</th>
+    <th>Created At</th>
+    <th>Action</th>
+</tr>
+</thead>
 
-            <td>{{ t.created_at }}</td>
+<tbody>
+{% for t in trips %}
+<tr
+    data-status="{% if t.actual_arrival_time %}closed{% else %}pending{% endif %}"
+    data-indent="{{ t.indent_id|lower }}"
+    data-vehicle="{{ t.vehicle_no|lower }}"
+    data-customer="{{ t.customer_name|lower }}"
+    data-lr="{{ t.lr_no|lower if t.lr_no else '' }}"
+    data-created="{{ t.created_at.strftime('%Y-%m-%d') if t.created_at else '' }}"
+>
+    <td>{{ t.id }}</td>
+    <td>{{ t.indent_id }}</td>
+    <td>{{ t.customer_name }}</td>
+    <td>{{ t.vehicle_no }}</td>
+    <td>{{ t.driver_name }}</td>
+    <td>{{ t.driver_contact }}</td>
+    <td>{{ t.pickup }}</td>
+    <td>{{ t.drop_location }}</td>
+    <td>{{ t.total_drops }}</td>
+    <td>{{ t.exit_time }}</td>
+    <td>{{ t.eta_arrival_time }}</td>
+    <td>{{ t.actual_arrival_time if t.actual_arrival_time else "-" }}</td>
+    <td>{{ t.lr_no if t.lr_no else "-" }}</td>
 
-            <td>
-                {% if not t.actual_arrival_time %}
-                <button
-                    class="btn btn-sm btn-primary"
-                    data-bs-toggle="modal"
-                    data-bs-target="#closeModal{{ t.id }}">
-                    Close
-                </button>
-                {% else %}
-                <span class="badge bg-success px-3 py-2">Closed</span>
-                {% endif %}
+    <!-- ✅ DATA DISPLAY -->
+    <td>{{ t.loading_unloading_time if t.loading_unloading_time else "-" }}</td>
 
-                <!-- Close Modal -->
-                <div class="modal fade" id="closeModal{{ t.id }}" tabindex="-1">
-                    <div class="modal-dialog">
-                        <div class="modal-content">
+    <td>{{ t.total_distance }}</td>
+    <td>{{ t.duration_hours }}</td>
+    <td>{{ t.customer_details }}</td>
 
-                            <form action="/close-indent/{{ t.id }}" method="POST">
-                                <div class="modal-header bg-success text-white">
-                                    <h5 class="modal-title">Close Trip - {{ t.indent_id }}</h5>
-                                    <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                                </div>
+    <td>
+        {% if t.actual_arrival_time %}
+            {% if t.pod_url == 'POD Recieved' %}
+                <span class="badge bg-primary">POD Recieved</span>
+            {% elif t.pod_url == 'POD Pending' %}
+                <span class="badge bg-warning text-dark">POD Pending</span>
+            {% else %} N/A {% endif %}
+        {% else %} N/A {% endif %}
+    </td>
 
-                                <div class="modal-body">
-                                    <label class="form-label fw-bold">Actual Arrival Time</label>
-                                    <input type="datetime-local" name="actual_arrival_time" class="form-control" required>
+    <td>{{ t.created_at }}</td>
 
-                                    <label class="form-label mt-3 fw-bold">POD Status</label>
-                                    <select name="pod_url" class="form-select" required>
-                                        <option value="" disabled selected>Select POD Status</option>
-                                        <option value="POD Recieved">POD Recieved</option>
-                                        <option value="POD Pending">POD Pending</option>
-                                    </select>
-                                </div>
+    <td>
+        {% if not t.actual_arrival_time %}
+        <button class="btn btn-sm btn-primary"
+                data-bs-toggle="modal"
+                data-bs-target="#closeModal{{ t.id }}">
+            Close
+        </button>
+        {% else %}
+        <span class="badge bg-success px-3 py-2">Closed</span>
+        {% endif %}
 
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                    <button type="submit" class="btn btn-success">Close Trip</button>
-                                </div>
-                            </form>
-
+        <!-- CLOSE MODAL -->
+        <div class="modal fade" id="closeModal{{ t.id }}" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <form action="/close-indent/{{ t.id }}" method="POST">
+                        <div class="modal-header bg-success text-white">
+                            <h5 class="modal-title">Close Trip - {{ t.indent_id }}</h5>
+                            <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                         </div>
-                    </div>
-                </div>
 
-            </td>
-        </tr>
-        {% endfor %}
-        </tbody>
-    </table>
+                        <div class="modal-body">
+                            <label class="form-label fw-bold">Actual Arrival Time</label>
+                            <input type="datetime-local" name="actual_arrival_time" class="form-control" required>
+
+                            <!-- ✅ ONLY NEW INPUT -->
+                            <label class="form-label mt-3 fw-bold">Loading / Unloading Time</label>
+                            <input type="time" name="loading_unloading_time" class="form-control" required>
+
+                            <label class="form-label mt-3 fw-bold">POD Status</label>
+                            <select name="pod_url" class="form-select" required>
+                                <option value="POD Recieved">POD Recieved</option>
+                                <option value="POD Pending">POD Pending</option>
+                            </select>
+                        </div>
+
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-success">Close Trip</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+    </td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
 </div>
 
----
 
-<!-- ================== JAVASCRIPT FILTERS ================== -->
 
+<!-- ================= JAVASCRIPT FILTERS ================= -->
 <script>
 document.addEventListener("DOMContentLoaded", () => {
 
@@ -277,6 +274,7 @@ document.addEventListener("DOMContentLoaded", () => {
         customer: document.getElementById("customerFilter"),
         vehicle: document.getElementById("vehicleFilter"),
         indent: document.getElementById("indentFilter"),
+        lr: document.getElementById("lrFilter"),   // ⭐ NEW
         start: document.getElementById("startDateFilter"),
         end: document.getElementById("endDateFilter")
     };
@@ -285,7 +283,6 @@ document.addEventListener("DOMContentLoaded", () => {
     let statusFilter = "all";
 
     function applyFilters() {
-
         document.querySelectorAll('.controls-row .btn')
             .forEach(btn => btn.classList.remove('btn-active'));
 
@@ -293,12 +290,14 @@ document.addEventListener("DOMContentLoaded", () => {
         if (statusFilter === "pending") document.getElementById("showPending").classList.add('btn-active');
         if (statusFilter === "closed") document.getElementById("showClosed").classList.add('btn-active');
 
-
         rows.forEach(row => {
             const matchStatus = statusFilter === "all" || row.dataset.status === statusFilter;
             const matchCustomer = row.dataset.customer.includes(filters.customer.value.toLowerCase());
             const matchIndent = row.dataset.indent.includes(filters.indent.value.toLowerCase());
             const matchVehicle = row.dataset.vehicle.includes(filters.vehicle.value.toLowerCase());
+
+            // ⭐ LR filter
+            const matchLR = row.dataset.lr.includes(filters.lr.value.toLowerCase());
 
             const created = row.dataset.created;
             let matchDate = true;
@@ -306,7 +305,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (filters.end.value && created > filters.end.value) matchDate = false;
 
             row.style.display =
-                matchStatus && matchCustomer && matchIndent && matchVehicle && matchDate
+                matchStatus && matchCustomer && matchIndent && matchVehicle && matchLR && matchDate
                 ? "" : "none";
         });
     }
@@ -326,6 +325,74 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     applyFilters();
+});
+</script>
+
+<script>
+// =============== EXPORT TO CSV ==================
+function exportTableToCSV(filename) {
+    const rows = document.querySelectorAll("#tripTable tr");
+    let csv = [];
+
+    rows.forEach(row => {
+        if (row.style.display !== "none") {
+            const cols = row.querySelectorAll("th, td");
+            let rowData = [];
+
+            cols.forEach(col => {
+                let data = col.innerText.replace(/,/g, " ");
+                rowData.push(data);
+            });
+
+            csv.push(rowData.join(","));
+        }
+    });
+
+    const csvFile = new Blob([csv.join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(csvFile);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+}
+
+// =============== EXPORT TO EXCEL ==================
+function exportTableToExcel() {
+    let table = document.getElementById("tripTable");
+    let cloneTable = table.cloneNode(true);
+
+    cloneTable.querySelectorAll("tbody tr").forEach(row => {
+        if (row.style.display === "none") row.remove();
+    });
+
+    let html = `
+        <html>
+            <head>
+                <meta charset="UTF-8">
+            </head>
+            <body>
+                ${cloneTable.outerHTML}
+            </body>
+        </html>
+    `;
+
+    const blob = new Blob([html], { type: "application/vnd.ms-excel" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "trip_history.xls";
+    a.click();
+}
+
+// BUTTON EVENTS
+document.getElementById("exportCSV").addEventListener("click", () => {
+    exportTableToCSV("trip_history.csv");
+});
+
+document.getElementById("exportExcel").addEventListener("click", () => {
+    exportTableToExcel();
 });
 </script>
 
