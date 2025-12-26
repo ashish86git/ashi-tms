@@ -32,6 +32,15 @@
         background: var(--light-red);
         border-left: 6px solid var(--primary-red);
         box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+        transition: transform 0.2s, box-shadow 0.2s;
+        cursor: pointer;
+        text-decoration: none !important;
+        display: block;
+    }
+
+    .summary-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 6px 15px rgba(0,0,0,0.12);
     }
 
     .summary-card h6 {
@@ -68,18 +77,14 @@
 
 <div class="container py-4">
 
-    <!-- Title -->
     <div class="mb-4">
         <h2 class="fw-bold" style="color: var(--primary-red);">TMS Dashboard</h2>
         <p class="text-muted">Overview of unique trips, vehicles & drivers</p>
     </div>
 
-    <!-- Filters -->
     <form method="get" action="{{ url_for('dashboard') }}">
         <div class="filter-card mb-4">
-
             <div class="row g-3">
-
                 <div class="col-md-3">
                     <label class="form-label fw-semibold">Start Date</label>
                     <input type="date" name="start_date" value="{{ start_date }}" class="form-control">
@@ -101,48 +106,39 @@
                 </div>
 
                 <div class="col-md-3 d-flex align-items-end">
-                    <button class="btn btn-red w-50 me-2">
-                        Apply
-                    </button>
-                    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-danger w-50">
-                        Reset
-                    </a>
+                    <button class="btn btn-red w-50 me-2">Apply</button>
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-danger w-50">Reset</a>
                 </div>
-
             </div>
         </div>
     </form>
 
-    <!-- Summary Cards -->
     <div class="row g-3 mb-4">
 
         <div class="col-md-4">
-            <div class="summary-card">
+            <a href="/trip-history?status=pending" class="summary-card">
                 <h6>Pending Trips</h6>
                 <h3 style="color:#ff8800;">{{ pending }}</h3>
-            </div>
+            </a>
         </div>
 
         <div class="col-md-4">
-            <div class="summary-card">
+            <a href="/trip-history?status=closed" class="summary-card">
                 <h6>Closed Trips</h6>
                 <h3 style="color:#28a745;">{{ closed }}</h3>
-            </div>
+            </a>
         </div>
 
         <div class="col-md-4">
-            <div class="summary-card">
+            <a href="/trip-history" class="summary-card">
                 <h6>Total Trips</h6>
                 <h3 style="color:var(--dark-red);">{{ pending + closed }}</h3>
-            </div>
+            </a>
         </div>
 
     </div>
 
-    <!-- Charts -->
     <div class="row g-4">
-
-        <!-- Top Vehicles -->
         <div class="col-md-6">
             <div class="card card-custom">
                 <div class="card-header-custom">Top 5 Vehicles by Unique Trips</div>
@@ -152,7 +148,6 @@
             </div>
         </div>
 
-        <!-- Daily Trend -->
         <div class="col-md-6">
             <div class="card card-custom">
                 <div class="card-header-custom">Daily Trip Trend (Unique)</div>
@@ -162,7 +157,6 @@
             </div>
         </div>
 
-        <!-- Vehicle Distance -->
         <div class="col-md-6">
             <div class="card card-custom">
                 <div class="card-header-custom">Top 10 Vehicles by Total Distance (KM)</div>
@@ -172,7 +166,6 @@
             </div>
         </div>
 
-        <!-- Driver Distance -->
         <div class="col-md-6">
             <div class="card card-custom">
                 <div class="card-header-custom">Top 10 Drivers by Total Distance (KM)</div>
@@ -181,18 +174,16 @@
                 </div>
             </div>
         </div>
-
     </div>
 
 </div>
 
-<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
     const vehicleLabels = {{ vehicle_labels | tojson }};
     const vehicleValues = {{ vehicle_values | tojson }};
-    new Chart(vehicleChart, {
+    new Chart(document.getElementById('vehicleChart'), {
         type: 'bar',
         data: {
             labels: vehicleLabels,
@@ -207,7 +198,7 @@
 
     const trendLabels = {{ trend_labels | tojson }};
     const trendValues = {{ trend_values | tojson }};
-    new Chart(trendChart, {
+    new Chart(document.getElementById('trendChart'), {
         type: 'line',
         data: {
             labels: trendLabels,
@@ -224,7 +215,7 @@
 
     const distanceLabels = {{ distance_labels | tojson }};
     const distanceValues = {{ distance_values | tojson }};
-    new Chart(distanceChart, {
+    new Chart(document.getElementById('distanceChart'), {
         type: 'bar',
         data: {
             labels: distanceLabels,
@@ -239,7 +230,7 @@
 
     const driverLabels = {{ driver_labels | tojson }};
     const driverValues = {{ driver_values | tojson }};
-    new Chart(driverChart, {
+    new Chart(document.getElementById('driverChart'), {
         type: 'bar',
         data: {
             labels: driverLabels,
