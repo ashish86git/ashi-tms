@@ -556,11 +556,12 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
 
-  // ------------------- Convert UTC → IST (LOGIC UNCHANGED) -------------------
+  // ------------------- Convert UTC → IST (LOGIC UNCHANGED - TIMEZONE FIXED) -------------------
   function convertToIST(utcTimestamp) {
       if (!utcTimestamp) return null;
       try {
           const date = new Date(utcTimestamp);
+          // Fixed to en-IN and Asia/Kolkata for consistent IST display
           return date.toLocaleTimeString("en-IN", {
               hour: '2-digit',
               minute: '2-digit',
@@ -782,9 +783,18 @@ document.addEventListener("DOMContentLoaded", function () {
   /* ---------------------------------------------------
         TABLE FILTER LOGIC (UNCHANGED)
   --------------------------------------------------- */
-  const formatDate = d => d.toISOString().split("T")[0];
+  // Adjusted to use Asia/Kolkata for filter comparison
+  const formatDate = d => {
+      return new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Asia/Kolkata',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit'
+      }).format(d);
+  };
+
   const getStartOfWeek = d => {
-    const temp = new Date(d);
+    const temp = new Date(d.toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
     temp.setDate(temp.getDate() - temp.getDay());
     return formatDate(temp);
   };

@@ -6,7 +6,7 @@
 <div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="text-dark" style="font-family: 'Inter', sans-serif; font-weight: 600;">
-            <i class="bi bi- geo-alt-fill text-primary me-2"></i>Trip Monitoring Flow
+            <i class="bi bi-geo-alt-fill text-primary me-2"></i>Trip Monitoring Flow
         </h2>
         <div class="text-muted small">
             <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2">System Active</span>
@@ -42,29 +42,56 @@ document.addEventListener("DOMContentLoaded", function () {
     const indentId = "{{ indent_id }}";
     if (!indentId) return;
 
+    /* UPDATED HELPER FUNCTION: STRICT IST CONVERSION */
+    function formatToIST(dateString) {
+        if (!dateString || dateString === "---" || dateString === "-" || dateString === "None") return "---";
+
+        try {
+            // Check if string already contains a 'Z' or '+', if not, it might be raw local time from DB
+            let date = new Date(dateString);
+
+            // If the date is invalid, try cleaning it
+            if (isNaN(date.getTime())) return dateString;
+
+            // Strict IST Formatting
+            return new Intl.DateTimeFormat('en-IN', {
+                timeZone: 'Asia/Kolkata',
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            }).format(date);
+
+        } catch (e) {
+            console.error("Format Error:", e);
+            return dateString;
+        }
+    }
+
     fetch(`/api-trip-details/${indentId}`)
         .then(res => res.json())
         .then(data => {
             if (data.error) return;
 
             /* ======================
-               SMART NODES DATA
+               SMART NODES DATA (WITH FIXED IST)
             ====================== */
             const nodeDetails = [
-                { id: 1, color: "#10b981", icon: "📥", title: "RECEIVED", val: data.received_time },
-                { id: 2, color: "#3b82f6", icon: "🏗️", title: "LOADING", val: data.loading_time },
-                { id: 3, color: "#3b82f6", icon: "🅿️", title: "PARKING", val: data.parking_time },
-                { id: 4, color: "#3b82f6", icon: "🏭", title: "EXIT YARD", val: data.exit_time },
+                { id: 1, color: "#10b981", icon: "📥", title: "RECEIVED", val: formatToIST(data.received_time) },
+                { id: 2, color: "#3b82f6", icon: "🏗️", title: "LOADING", val: formatToIST(data.loading_time) },
+                { id: 3, color: "#3b82f6", icon: "🅿️", title: "PARKING", val: formatToIST(data.parking_time) },
+                { id: 4, color: "#3b82f6", icon: "🏭", title: "EXIT YARD", val: formatToIST(data.exit_time) },
                 { id: 5, color: "#f59e0b", icon: "🚚", title: "IN TRANSIT", val: `${data.total_distance || 0} km | ${data.duration_hours || 0} hrs` },
-                { id: 6, color: "#8b5cf6", icon: "📍", title: "ARRIVAL", val: data.actual_arrival_time },
-                { id: 7, color: "#06b6d4", icon: "📦", title: "UNLOADING", val: data.loading_unloading_time },
-                { id: 8, color: "#ef4444", icon: "✅", title: "DROP DONE", val: data.actual_arrival_time }
+                { id: 6, color: "#8b5cf6", icon: "📍", title: "ARRIVAL", val: formatToIST(data.actual_arrival_time) },
+                { id: 7, color: "#06b6d4", icon: "📦", title: "UNLOADING", val: formatToIST(data.loading_unloading_time) },
+                { id: 8, color: "#ef4444", icon: "✅", title: "DROP DONE", val: formatToIST(data.actual_arrival_time) }
             ];
 
             const nodes = nodeDetails.map(n => ({
                 id: n.id,
-                /* Using multi-line label without complex HTML tags to avoid render bugs */
-                label: `${n.icon} ${n.title}\n${n.val || "---"}`,
+                label: `${n.icon} ${n.title}\n${n.val}`,
                 shape: "box",
                 margin: { top: 15, bottom: 15, left: 20, right: 20 },
                 font: {
@@ -110,7 +137,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 },
                 physics: false,
                 interaction: {
-                    zoomView: false, // Zoom lock kiya gaya hai
+                    zoomView: false,
                     dragView: true,
                     hover: true
                 },
@@ -122,7 +149,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
             const network = new vis.Network(container, { nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges) }, options);
 
-            // Auto-align on start
             network.once('afterDrawing', function() {
                 network.fit({ animation: true });
             });
