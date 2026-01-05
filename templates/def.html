@@ -386,9 +386,14 @@
                   <input type="text" name="customers[0][lr_no]" class="form-control shadow-sm" />
                 </div>
                 <div class="col-md-3">
-                  <label class="form-label">Material</label>
-                  <input type="text" name="customers[0][material]" class="form-control shadow-sm" />
+                    <label class="form-label">Material</label>
+                    <select name="customers[0][material]" class="form-control shadow-sm">
+                        <option value="">Select Material</option>
+                        <option value="Buckets">Buckets</option>
+                        <option value="Barrels">Barrels</option>
+                    </select>
                 </div>
+
                 <div class="col-md-3">
                   <label class="form-label">Load per Bucket (Kg)</label>
                   <input type="number" name="customers[0][load_per_bucket]" class="form-control shadow-sm loadPerBucketInput" />

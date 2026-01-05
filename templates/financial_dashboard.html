@@ -1,26 +1,146 @@
 {% extends "layout.html" %}
-{% block title %}Financial Dashboard{% endblock %}
-
 {% block content %}
-<div class="container-fluid mt-4">
-    <h2 class="mb-4 text-danger">Financial Dashboard</h2>
 
-    <!-- ----------------- Top 5 Revenue Vehicles ----------------- -->
-    <div class="row mb-4">
-        {% for vehicle in top_vehicles %}
-        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-            <div class="card shadow-sm border-0 text-center p-3 h-100"
-                style="background: linear-gradient(135deg, #FFAA33 0%, #ffe066 100%); color: #000;">
+<style>
+/* ================= UI Enhancements ================= */
+.dashboard-title {
+    font-weight: 600;
+}
 
-                <div class="card-body">
-                    <h5 class="card-title text-truncate">{{ vehicle['Vehicle Name'] }}</h5>
-                    <p class="card-text mb-1"><strong>ID:</strong> {{ vehicle['Vehicle ID'] }}</p>
-                    <p class="card-text mb-1"><strong>Trips:</strong> {{ vehicle['Trips'] }}</p>
-                    <p class="card-text mb-1"><strong>Revenue:</strong> ₹{{ vehicle['Revenue'] | round(2) }}</p>
-                    <p class="card-text mb-1"><strong>Total Distance:</strong> {{ vehicle['Total Distance Travelled'] | round(2) }} km</p>
-                    <div class="revenue-bar bg-danger rounded" style="width: {{ vehicle['Revenue_Percent'] }}%; height: 6px; margin-top:5px;"></div>
-                    <p class="card-text mb-0 {% if vehicle['PnL'] >= 0 %}text-success{% else %}text-danger{% endif %}">
-                        <strong>PnL:</strong> ₹{{ vehicle['PnL'] | round(2) }}
+.filter-card label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #555;
+}
+
+.table thead th {
+    white-space: nowrap;
+}
+
+.summary-card {
+    min-height: 90px;
+}
+
+.summary-card h6 {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.summary-card p {
+    font-size: 0.75rem;
+    margin-bottom: 0;
+}
+
+.info-pill {
+    font-size: 0.75rem;
+    padding: 4px 10px;
+}
+
+@media (max-width: 768px) {
+    .summary-row {
+        overflow-x: auto;
+        flex-wrap: nowrap;
+    }
+
+    .summary-row .col-md-3 {
+        min-width: 220px;
+    }
+
+    .table-responsive {
+        font-size: 0.75rem;
+    }
+}
+</style>
+
+<div class="container-fluid mt-3">
+
+    <!-- ================= HEADER ================= -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
+        <h4 class="text-primary dashboard-title mb-0">
+            💰 Trip Cost Dashboard
+        </h4>
+
+        <a href="{{ url_for('financial',
+                export='csv',
+                vehicle_id=vehicle_filter,
+                driver_name=driver_filter,
+                start_date=start_date,
+                end_date=end_date) }}"
+           class="btn btn-success btn-sm shadow-sm">
+            ⬇ Export CSV
+        </a>
+    </div>
+
+    <!-- ================= COST INFO BAR ================= -->
+    <div class="alert alert-info d-flex justify-content-between align-items-center py-2 mb-3">
+        <div class="d-flex flex-wrap gap-2">
+            <span class="badge bg-primary info-pill">Fuel Type: CNG</span>
+            <span class="badge bg-success info-pill">Fuel Rate: ₹88</span>
+<!--            <span class="badge bg-dark info-pill">Vehicle Avg: Distance ÷ 6</span>-->
+        </div>
+
+        <button class="btn btn-outline-primary btn-sm"
+                data-bs-toggle="modal"
+                data-bs-target="#costLogicModal">
+            ℹ️ View Cost Logic
+        </button>
+    </div>
+
+    <!-- ================= FILTERS ================= -->
+    <form method="get" class="card filter-card p-3 mb-3 shadow-sm border-0">
+        <div class="row g-3 align-items-end">
+
+            <div class="col-md-2 col-6">
+                <label>Vehicle</label>
+                <input type="text" name="vehicle_id"
+                       class="form-control form-control-sm"
+                       placeholder="Vehicle ID"
+                       value="{{ vehicle_filter }}">
+            </div>
+
+            <div class="col-md-3 col-6">
+                <label>Driver</label>
+                <input type="text" name="driver_name"
+                       class="form-control form-control-sm"
+                       placeholder="Driver Name"
+                       value="{{ driver_filter }}">
+            </div>
+
+            <div class="col-md-2 col-6">
+                <label>Start Date</label>
+                <input type="date" name="start_date"
+                       class="form-control form-control-sm"
+                       value="{{ start_date }}">
+            </div>
+
+            <div class="col-md-2 col-6">
+                <label>End Date</label>
+                <input type="date" name="end_date"
+                       class="form-control form-control-sm"
+                       value="{{ end_date }}">
+            </div>
+
+            <div class="col-md-3 col-12 text-end">
+                <button class="btn btn-primary btn-sm me-1">🔍 Apply</button>
+                <a href="{{ url_for('financial') }}"
+                   class="btn btn-outline-secondary btn-sm">
+                    Reset
+                </a>
+            </div>
+
+        </div>
+    </form>
+
+    <!-- ================= SUMMARY ================= -->
+    <div class="row mb-3 summary-row g-2">
+        {% for s in summary.values() %}
+        <div class="col-md-3">
+            <div class="card summary-card shadow-sm border-start border-4 border-danger">
+                <div class="card-body p-2">
+                    <h6 class="mb-1 text-primary">🚚 {{ s['Vehicle ID'] }}</h6>
+                    <p>Trips: <strong>{{ s['Trips'] }}</strong></p>
+                    <p class="text-danger fw-semibold">
+                        ₹ {{ "%.2f"|format(s['Total Cost']) }}
                     </p>
                 </div>
             </div>
@@ -28,141 +148,121 @@
         {% endfor %}
     </div>
 
-    <!-- ----------------- Filter Form ----------------- -->
-    <form class="row g-3 mb-4 p-3 bg-light rounded shadow-sm align-items-end" method="get">
-        <div class="col-md-2">
-            <label class="form-label fw-semibold">Start Date</label>
-            <input type="date" name="start_date" value="{{ start_date }}" class="form-control form-control-lg">
-        </div>
-        <div class="col-md-2">
-            <label class="form-label fw-semibold">End Date</label>
-            <input type="date" name="end_date" value="{{ end_date }}" class="form-control form-control-lg">
-        </div>
-        <div class="col-md-3">
-            <label class="form-label fw-semibold">Vehicle ID</label>
-            <input type="text" name="vehicle_id" placeholder="Vehicle ID" class="form-control form-control-lg" value="{{ vehicle_filter }}">
-        </div>
-        <div class="col-md-3">
-            <label class="form-label fw-semibold">Driver Name</label>
-            <input type="text" name="driver_name" placeholder="Driver Name" class="form-control form-control-lg" value="{{ driver_filter }}">
-        </div>
+    <!-- ================= TABLE ================= -->
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
 
-        <!-- Buttons -->
-        <div class="col-md-2 d-flex gap-2 justify-content-end flex-wrap">
-            <button type="submit" class="btn btn-danger btn-lg flex-fill">Filter</button>
-            <a href="{{ url_for('financial') }}" class="btn btn-secondary btn-lg flex-fill">Reset</a>
-            <a href="{{ url_for('financial', export='csv', start_date=start_date, end_date=end_date, vehicle_id=vehicle_filter, driver_name=driver_filter) }}" class="btn btn-success btn-lg flex-fill">CSV</a>
+            <div class="table-responsive">
+                <table class="table table-hover table-bordered align-middle mb-0">
+                    <thead class="table-dark text-center">
+                        <tr>
+                            <th>Vehicle</th>
+                            <th>Driver</th>
+                            <th>Indent</th>
+                            <th>Material</th>
+                            <th class="text-end">
+                                Distance (KM)
+                                <span class="text-info"
+                                      data-bs-toggle="tooltip"
+                                      title="Distance + 20 KM ÷ 6 × ₹78">
+                                    ℹ️
+                                </span>
+                            </th>
+                            <th class="text-end">Material Cost (₹)</th>
+                            <th class="text-end">Total Cost (₹)</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                    {% for r in routes %}
+                        <tr>
+                            <td>{{ r['Vehicle ID'] }}</td>
+                            <td>{{ r['Driver Name'] }}</td>
+                            <td class="fw-semibold">{{ r['Indent'] }}</td>
+                            <td>{{ r['Material'] }}</td>
+
+                            <td class="text-end">
+                                {{ "%.2f"|format(r['Distance (KM)']) }}
+                            </td>
+
+                            <td class="text-end">
+                                {{ "%.2f"|format(r['Material Cost']) }}
+                            </td>
+
+                            <td class="text-end fw-bold text-danger">
+                                {{ "%.2f"|format(r['Total Cost Per Trip']) }}
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">
+                                No records found
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
         </div>
-    </form>
-
-    <!-- ----------------- Trip Details Table ----------------- -->
-    <div class="table-responsive shadow-sm rounded">
-        <table class="table table-hover table-bordered align-middle text-center mb-0">
-            <thead class="table-dark sticky-top">
-                <tr>
-                    <th>Vehicle ID</th>
-                    <th>Vehicle Name</th>
-                    <th>Driver Name</th>
-                    <th>Status</th>
-                    <th>Trip Performance</th> <!-- NEW COLUMN -->
-                    <th>Type</th>
-                    <th>Group</th>
-                    <th>Customer</th>
-                    <th>Material</th>
-                    <th>LR No.</th>
-                    <th>Pickup</th>
-                    <th>Drop</th>
-                    <th>No. Buckets</th>
-                    <th>Load/Bucket</th>
-                    <th>Total Load</th>
-                    <th>Total Distance Travelled (km)</th>
-                    <th>Fuel Cost</th>
-                    <th>Total Cost</th>
-                    <th>Revenue</th>
-                    <th>PnL</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for trip in routes %}
-                <tr class="align-middle">
-                    <td>{{ trip['Vehicle ID'] }}</td>
-                    <td>{{ trip['Vehicle Name'] }}</td>
-                    <td>{{ trip['Driver Name'] }}</td>
-                    <td>{{ trip['Status'] }}</td>
-
-                    <!-- NEW TRIP PERFORMANCE COLUMN -->
-                    <td>
-                        <span class="
-                            {% if trip['Trip Performance'] == 'On-Time' %}
-                                text-success
-                            {% elif trip['Trip Performance'] == 'Delayed' %}
-                                text-danger
-                            {% elif trip['Trip Performance'] == 'Early' %}
-                                text-primary
-                            {% else %}
-                                text-secondary
-                            {% endif %}
-                        ">
-                            {{ trip['Trip Performance'] }}
-                        </span>
-                    </td>
-
-                    <td>{{ trip['Type'] }}</td>
-                    <td>{{ trip['Group'] }}</td>
-                    <td>{{ trip['Customer'] }}</td>
-                    <td>{{ trip['Material'] }}</td>
-                    <td>{{ trip['LR No.'] }}</td>
-                    <td>{{ trip['Pickup'] }}</td>
-                    <td>{{ trip['Drop'] }}</td>
-                    <td>{{ trip['No. Buckets'] }}</td>
-                    <td>{{ trip['Load/Bucket'] }}</td>
-                    <td>{{ trip['Total Load'] }}</td>
-                    <td>{{ trip['Total Distance Travelled'] | round(2) }}</td>
-                    <td>{{ trip['Fuel Cost'] | round(2) }}</td>
-                    <td>{{ trip['Total Cost'] | round(2) }}</td>
-                    <td>{{ trip['Revenue'] | round(2) }}</td>
-                    <td class="{% if trip['PnL'] >= 0 %}text-success{% else %}text-danger{% endif %}">
-                        {{ trip['PnL'] | round(2) }}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
     </div>
+
 </div>
 
-<!-- ----------------- Custom CSS ----------------- -->
-<style>
-    body { background-color: #fdf2f2; font-family: 'Segoe UI', sans-serif; }
-    h2 { font-weight: 700; }
+<!-- ================= COST LOGIC MODAL ================= -->
+<div class="modal fade" id="costLogicModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
 
-    .table thead th {
-        background-color: #B82548 !important;
-        color: #fff;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-    .table-hover tbody tr:hover { background-color: #ffe6e6; transition: all 0.2s ease-in-out; }
-    .table-responsive { background-color: #fff; border-radius: 0.5rem; padding: 0.5rem; }
-    .form-control-lg { border-radius: 0.5rem; }
-    .btn-lg { border-radius: 0.5rem; font-weight: 500; }
-    .sticky-top { top: 0; z-index: 10; }
+      <div class="modal-header bg-primary text-white">
+        <h6 class="modal-title">📊 Trip Cost Calculation Logic</h6>
+        <button type="button" class="btn-close btn-close-white"
+                data-bs-dismiss="modal"></button>
+      </div>
 
-    /* Cards */
-    .card { border-radius: 0.75rem; transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out; }
-    .card:hover { transform: translateY(-8px); box-shadow: 0 10px 25px rgb(0, 191, 255); }
-    .revenue-bar { transition: width 0.5s ease; height: 6px; margin-top: 5px; border-radius:3px; }
+      <div class="modal-body small">
 
-    /* PnL colors */
-    .text-success { color: #28a745 !important; font-weight: 600; }
-    .text-danger { color: #dc3545 !important; font-weight: 600; }
-    .text-primary { color: #007bff !important; font-weight: 600; }
-    .text-secondary { color: #6c757d !important; font-weight: 600; }
+        <p><strong>Fuel Type:</strong> CNG</p>
+        <p><strong>Fuel Rate Used:</strong> ₹78</p>
 
-    .gap-2 { gap: 0.5rem !important; }
-    @media (max-width: 992px) {
-        .col-md-2.d-flex { flex-direction: column; }
-        .col-md-2.d-flex a, .col-md-2.d-flex button { width: 100%; }
-    }
-</style>
+        <hr>
+
+        <p><strong>Distance Cost Formula:</strong></p>
+        <code>(Trip Distance + 20 KM) ÷ 6 × 78</code>
+
+        <hr>
+
+        <p><strong>Material Cost Formula:</strong></p>
+        <code>No. of Buckets × Material Rate</code>
+
+        <hr>
+
+        <p class="fw-bold text-danger">
+            Total Cost = Distance Cost + Material Cost
+        </p>
+
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm"
+                data-bs-dismiss="modal">
+            Close
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    var tooltipTriggerList = [].slice.call(
+        document.querySelectorAll('[data-bs-toggle="tooltip"]')
+    );
+    tooltipTriggerList.map(function (el) {
+        return new bootstrap.Tooltip(el);
+    });
+});
+</script>
+
 {% endblock %}

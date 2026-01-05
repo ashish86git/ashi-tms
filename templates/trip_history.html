@@ -2,6 +2,8 @@
 
 {% block content %}
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
 <h2 class="mb-4 text-primary">🚚 Trip History Dashboard</h2>
 
 <div class="mb-3 d-flex justify-content-end">
@@ -17,10 +19,8 @@
                 <h5 class="modal-title">🚗 Vehicle Pool</h5>
                 <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-
             <div class="modal-body" style="background-color: #f8f9fa;">
                 {% set ns = namespace(closed=[], intransit=[]) %}
-
                 {% for t in trips %}
                     {% if t.vehicle_no %}
                         {% if t.actual_arrival_time and t.loading_unloading_time and t.pod_url == 'POD Recieved' %}
@@ -39,8 +39,7 @@
                 {% if ns.intransit %}
                     <ul class="list-group mb-4">
                         {% for vehicle in ns.intransit %}
-                            <li class="list-group-item d-flex justify-content-between align-items-center"
-                                style="background:#fff3cd; border:1px solid #ffca2c; opacity:0.7; cursor:not-allowed;">
+                            <li class="list-group-item d-flex justify-content-between align-items-center" style="background:#fff3cd; border:1px solid #ffca2c; opacity:0.7; cursor:not-allowed;">
                                 <strong class="text-dark">{{ vehicle }}</strong>
                                 <span class="badge bg-warning text-dark rounded-pill px-3 py-2">In Transit</span>
                             </li>
@@ -55,8 +54,7 @@
                     <ul class="list-group">
                         {% for vehicle in ns.closed %}
                             <a href="/trip-history?vehicle={{ vehicle }}" style="text-decoration:none;">
-                                <li class="list-group-item d-flex justify-content-between align-items-center"
-                                    style="background:white; border:1px solid #198754;">
+                                <li class="list-group-item d-flex justify-content-between align-items-center" style="background:white; border:1px solid #198754;">
                                     <strong class="text-dark">{{ vehicle }}</strong>
                                     <span class="badge bg-success rounded-pill px-3 py-2">Closed</span>
                                 </li>
@@ -66,9 +64,6 @@
                 {% else %}
                     <p class="text-muted">No Vehicles Closed</p>
                 {% endif %}
-            </div>
-            <div class="modal-footer" style="background-color: #f8f9fa;">
-                <button class="btn btn-outline-danger" data-bs-modal="dismiss">Close</button>
             </div>
         </div>
     </div>
@@ -100,7 +95,7 @@
 
     <div class="row mb-3">
         <div class="col-12 d-flex justify-content-end">
-            <button id="exportExcel" class="btn btn-outline-primary me-2">Export Excel</button>
+            <button id="exportExcel" class="btn btn-outline-primary me-2">Export Excel (.xlsx)</button>
             <button id="exportCSV" class="btn btn-outline-success">Export CSV</button>
         </div>
     </div>
@@ -112,7 +107,7 @@
 <tr>
     <th>ID</th><th>Indent ID</th><th>Customer Name</th><th>Vehicle</th><th>Driver</th><th>Contact</th>
     <th>Pickup</th><th>Drop</th><th>Drops</th><th>Exit Time</th><th>ETA Arrival</th><th>Actual Arrival</th>
-    <th>LR Number</th><th>Loading / Unloading Time</th><th>Distance</th><th>Duration</th><th>Customer Details</th><th>POD</th><th>Created At</th><th>Action</th>
+    <th>LR Number</th><th>Loading / Unloading Time</th><th>Distance</th><th>Duration</th><th>Customer Details</th><th>POD Status</th><th>Created At</th><th class="no-export">Action</th>
 </tr>
 </thead>
 
@@ -143,59 +138,46 @@
     <td>{{ t.total_distance }}</td>
     <td>{{ t.duration_hours }}</td>
     <td>{{ t.customer_details }}</td>
-    <td>
-        {% if t.pod_url == 'POD Recieved' %}
-            <span class="badge bg-primary">POD Recieved</span>
-        {% elif t.actual_arrival_time %}
-            <span class="badge bg-warning text-dark">POD Pending</span>
-        {% else %} N/A {% endif %}
-    </td>
+    <td>{{ t.pod_url if t.pod_url else "N/A" }}</td>
     <td>{{ t.created_at }}</td>
-    <td>
+    <td class="no-export">
         {% if not (t.actual_arrival_time and t.loading_unloading_time and t.pod_url == 'POD Recieved') %}
-        <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#closeModal{{ t.id }}">
-            Close Trip
-        </button>
+        <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#closeModal{{ t.id }}">Close Trip</button>
         {% else %}
-        <span class="badge bg-success px-3 py-2">Closed</span>
+        <span class="badge bg-success">Closed</span>
         {% endif %}
 
         <div class="modal fade" id="closeModal{{ t.id }}" tabindex="-1">
-          <div class="modal-dialog">
-            <div class="modal-content">
-              <form action="/close-indent/{{ t.id }}" method="POST" class="close-form">
-                <div class="modal-header bg-success text-white">
-                  <h5 class="modal-title">Trip - {{ t.indent_id }}</h5>
-                  <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                  <input type="hidden" name="actual_arrival_time" value="{{ t.actual_arrival_time if t.actual_arrival_time else '' }}">
-                  <input type="hidden" name="loading_unloading_time" value="{{ t.loading_unloading_time if t.loading_unloading_time else '' }}">
-                  <input type="hidden" name="pod_url" value="{{ t.pod_url if t.pod_url else '' }}">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <form action="/close-indent/{{ t.id }}" method="POST" class="close-form">
+                        <div class="modal-header bg-success text-white">
+                            <h5 class="modal-title">Trip - {{ t.indent_id }}</h5>
+                            <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <input type="hidden" name="actual_arrival_time" value="{{ t.actual_arrival_time if t.actual_arrival_time else '' }}">
+                            <input type="hidden" name="loading_unloading_time" value="{{ t.loading_unloading_time if t.loading_unloading_time else '' }}">
+                            <input type="hidden" name="pod_url" value="{{ t.pod_url if t.pod_url else '' }}">
 
-                  <div class="d-grid gap-3">
-                    <button type="button" class="btn btn-actual {% if t.actual_arrival_time %}btn-primary{% else %}btn-outline-primary{% endif %}" {% if t.actual_arrival_time %}disabled{% endif %}>
-                      {% if t.actual_arrival_time %}✅ Actual Arrival Set{% else %}📍 Set Actual Arrival Time{% endif %}
-                    </button>
-
-                    <button type="button" class="btn btn-loading {% if t.loading_unloading_time %}btn-warning{% else %}btn-outline-warning{% endif %}"
-                      {% if not t.actual_arrival_time or t.loading_unloading_time %}disabled{% endif %}>
-                      {% if t.loading_unloading_time %}✅ Loading / Unloading Set{% else %}⏱️ Set Loading / Unloading Time{% endif %}
-                    </button>
-
-                    <button type="button" class="btn btn-pod {% if t.pod_url == 'POD Recieved' %}btn-success{% else %}btn-outline-success{% endif %}"
-                      {% if not t.loading_unloading_time or t.pod_url == 'POD Recieved' %}disabled{% endif %}>
-                      {% if t.pod_url == 'POD Recieved' %}✅ POD Received{% else %}📄 POD Received{% endif %}
-                    </button>
-                  </div>
+                            <div class="d-grid gap-3">
+                                <button type="button" class="btn btn-actual {% if t.actual_arrival_time %}btn-primary{% else %}btn-outline-primary{% endif %}" {% if t.actual_arrival_time %}disabled{% endif %}>
+                                    {% if t.actual_arrival_time %}✅ Actual Arrival Set{% else %}📍 Set Actual Arrival Time{% endif %}
+                                </button>
+                                <button type="button" class="btn btn-loading {% if t.loading_unloading_time %}btn-warning{% else %}btn-outline-warning{% endif %}" {% if not t.actual_arrival_time or t.loading_unloading_time %}disabled{% endif %}>
+                                    {% if t.loading_unloading_time %}✅ Loading / Unloading Set{% else %}⏱️ Set Loading / Unloading Time{% endif %}
+                                </button>
+                                <button type="button" class="btn btn-pod {% if t.pod_url == 'POD Recieved' %}btn-success{% else %}btn-outline-success{% endif %}" {% if not t.loading_unloading_time or t.pod_url == 'POD Recieved' %}disabled{% endif %}>
+                                    {% if t.pod_url == 'POD Recieved' %}✅ POD Received{% else %}📄 POD Received{% endif %}
+                                </button>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="submit" class="btn btn-success main-submit-btn" disabled>Final Close</button>
+                        </div>
+                    </form>
                 </div>
-                <div class="modal-footer">
-                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                  <button type="submit" class="btn btn-success main-submit-btn" disabled>Final Close</button>
-                </div>
-              </form>
             </div>
-          </div>
         </div>
     </td>
 </tr>
@@ -206,7 +188,7 @@
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
-    // 1. FILTER & EXPORT (Unchanged Logic)
+    // 1. FILTERS LOGIC
     const filters = {
         customer: document.getElementById("customerFilter"),
         vehicle: document.getElementById("vehicleFilter"),
@@ -248,36 +230,60 @@ document.addEventListener("DOMContentLoaded", () => {
         applyFilters();
     };
 
-    // 2. EXPORT FUNCTIONS
-    document.getElementById("exportCSV").addEventListener("click", () => exportTable("csv"));
-    document.getElementById("exportExcel").addEventListener("click", () => exportTable("xls"));
+    // 2. NEW EXPORT LOGIC USING SHEETJS (XLSX)
+    function getFilteredData() {
+        const table = document.getElementById("tripTable");
+        const visibleData = [];
+        const headers = [];
 
-    function exportTable(type) {
-        let table = document.getElementById("tripTable").cloneNode(true);
-        table.querySelectorAll("tbody tr").forEach(row => { if (row.style.display === "none") row.remove(); });
-        const blob = new Blob([type === 'csv' ? tableToCSV(table) : table.outerHTML], { type: type === 'csv' ? "text/csv" : "application/vnd.ms-excel" });
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = `trip_history.${type}`;
-        a.click();
-    }
-    function tableToCSV(table) {
-        let csv = [];
-        table.querySelectorAll("tr").forEach(row => {
-            let rowData = [];
-            row.querySelectorAll("th, td").forEach(col => rowData.push(col.innerText.replace(/,/g, " ")));
-            csv.push(rowData.join(","));
+        // Get Headers (excluding 'Action' column)
+        table.querySelectorAll("thead th").forEach((th, index) => {
+            if (!th.classList.contains('no-export')) {
+                headers.push(th.innerText);
+            }
         });
-        return csv.join("\n");
+        visibleData.push(headers);
+
+        // Get Visible Rows
+        table.querySelectorAll("tbody tr").forEach(row => {
+            if (row.style.display !== "none") {
+                const rowData = [];
+                row.querySelectorAll("td").forEach((td, index) => {
+                    if (!td.classList.contains('no-export')) {
+                        rowData.push(td.innerText.trim());
+                    }
+                });
+                visibleData.push(rowData);
+            }
+        });
+        return visibleData;
     }
 
-    // 3. STEP-BY-STEP MODAL FLOW (ENHANCED)
+    document.getElementById("exportExcel").addEventListener("click", () => {
+        const data = getFilteredData();
+        const worksheet = XLSX.utils.aoa_to_sheet(data);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Trips");
+        XLSX.writeFile(workbook, "Trip_History_Report.xlsx");
+    });
+
+    document.getElementById("exportCSV").addEventListener("click", () => {
+        const data = getFilteredData();
+        const worksheet = XLSX.utils.aoa_to_sheet(data);
+        const csvOutput = XLSX.utils.sheet_to_csv(worksheet);
+        const blob = new Blob([csvOutput], { type: "text/csv;charset=utf-8;" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "Trip_History_Report.csv";
+        link.click();
+    });
+
+    // 3. MODAL STEP LOGIC
     function nowDateTime() {
         const d = new Date();
         const pad = n => n.toString().padStart(2, "0");
         return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
     }
-
     function nowTime() {
         const d = new Date();
         const pad = n => n.toString().padStart(2, "0");
@@ -289,22 +295,19 @@ document.addEventListener("DOMContentLoaded", () => {
         const loadingBtn = form.querySelector(".btn-loading");
         const podBtn = form.querySelector(".btn-pod");
         const submitBtn = form.querySelector(".main-submit-btn");
-
         const actualInput = form.querySelector("input[name='actual_arrival_time']");
         const loadingInput = form.querySelector("input[name='loading_unloading_time']");
         const podInput = form.querySelector("input[name='pod_url']");
 
-        // Initial Submit State Check
         const checkFinalStatus = () => {
             if (actualInput.value && loadingInput.value && podInput.value === "POD Recieved") {
                 submitBtn.disabled = false;
             }
         };
-        checkFinalStatus();
 
         actualBtn.onclick = () => {
             actualInput.value = nowDateTime();
-            actualBtn.className = "btn btn-primary btn-actual";
+            actualBtn.className = "btn btn-primary";
             actualBtn.innerText = "✅ Actual Arrival Set";
             actualBtn.disabled = true;
             loadingBtn.disabled = false;
@@ -313,7 +316,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         loadingBtn.onclick = () => {
             loadingInput.value = nowTime();
-            loadingBtn.className = "btn btn-warning btn-loading";
+            loadingBtn.className = "btn btn-warning";
             loadingBtn.innerText = "✅ Loading / Unloading Set";
             loadingBtn.disabled = true;
             podBtn.disabled = false;
@@ -322,7 +325,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         podBtn.onclick = () => {
             podInput.value = "POD Recieved";
-            podBtn.className = "btn btn-success btn-pod";
+            podBtn.className = "btn btn-success";
             podBtn.innerText = "✅ POD Received";
             podBtn.disabled = true;
             checkFinalStatus();
@@ -332,5 +335,4 @@ document.addEventListener("DOMContentLoaded", () => {
     applyFilters();
 });
 </script>
-
 {% endblock %}
