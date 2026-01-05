@@ -945,7 +945,6 @@ def safe_decimal(value, default=0):
 
 @app.route('/financial')
 def financial():
-    """Generates and displays the financial dashboard with filters, CSV export, and top 5 revenue vehicles."""
     vehicle_filter = request.args.get('vehicle_id', '').strip()
     driver_filter = request.args.get('driver_name', '').strip()
     export_csv = request.args.get('export', '').strip()
@@ -955,154 +954,133 @@ def financial():
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # ─────────────── Constants ─────────────── #
-    fuel_price_per_liter = safe_decimal('96.0')
-    fuel_efficiency_kmpl = safe_decimal('12.0')
-    toll_tax_per_trip = safe_decimal('100.0')
-    misc_cost_per_trip = safe_decimal('50.0')
-    cost_per_km_fuel = fuel_price_per_liter / fuel_efficiency_kmpl
-
-    # ─────────────── Fetch all indents ─────────────── #
+    # ───────── BASE QUERY (UNIQUE INDENT – LATEST TRIP ONLY) ───────── #
     query = """
+    WITH latest_trips AS (
+        SELECT
+            t.vehicle_no AS vehicle_id,
+            t.driver_name,
+            t.indent_id,
+            t.total_distance,
+            ROW_NUMBER() OVER (
+                PARTITION BY t.indent_id
+                ORDER BY t.id DESC
+            ) AS rn
+        FROM trip_data t
+    )
     SELECT
-        f.vehicle_id,
-        f.vehicle_name,
-        f.make,
-        f.model,
-        f.vin,
-        f.avg AS vehicle_avg,
-        f.status,
-        f.type,
-        f."group",
-        dm.driver_name,
+        lt.vehicle_id,
+        lt.driver_name,
+        i.indent,
         i.indent_date,
-        i.pickup_location,
-        i.location AS drop_location,
         i.no_of_buckets,
-        i.load_per_bucket,
         i.material,
-        i.lr_no,
-        i.customer_name,
-        i.range
-    FROM fleet f
-    LEFT JOIN driver_master dm ON f.driver_id = dm.driver_id
-    LEFT JOIN indents i ON f.vehicle_id::text = i.vehicle_number
-    WHERE i.indent_date IS NOT NULL
+        lt.total_distance
+    FROM latest_trips lt
+    LEFT JOIN indents i
+        ON lt.indent_id = i.indent
+    WHERE lt.rn = 1
+      AND i.indent_date IS NOT NULL
     """
 
-    # ─────────────── Dynamic filters ─────────────── #
     filters = []
+
     if vehicle_filter:
-        filters.append(f"f.vehicle_id::text = '{vehicle_filter}'")
+        filters.append("lt.vehicle_id = %s")
     if driver_filter:
-        filters.append(f"dm.driver_name ILIKE '%{driver_filter}%'")
+        filters.append("lt.driver_name ILIKE %s")
     if start_date and end_date:
-        filters.append(f"i.indent_date BETWEEN '{start_date}' AND '{end_date}'")
+        filters.append("i.indent_date BETWEEN %s AND %s")
     elif start_date:
-        filters.append(f"i.indent_date >= '{start_date}'")
+        filters.append("i.indent_date >= %s")
     elif end_date:
-        filters.append(f"i.indent_date <= '{end_date}'")
+        filters.append("i.indent_date <= %s")
 
     if filters:
         query += " AND " + " AND ".join(filters)
 
-    cur.execute(query)
+    params = []
+    if vehicle_filter:
+        params.append(vehicle_filter)
+    if driver_filter:
+        params.append(f"%{driver_filter}%")
+    if start_date and end_date:
+        params.extend([start_date, end_date])
+    elif start_date:
+        params.append(start_date)
+    elif end_date:
+        params.append(end_date)
+
+    cur.execute(query, params)
     rows = cur.fetchall()
 
-    # ─────────────── SUM of End-of-Range Distance per Vehicle ─────────────── #
-    range_query = """
-        SELECT
-            vehicle_number::text AS vehicle_id,
-            SUM(
-                COALESCE(
-                    CASE
-                        WHEN range ~ '^[0-9]+(\\.[0-9]+)?$' THEN range::numeric
-                        WHEN range ~ '^[0-9]+(\\.[0-9]+)?-[0-9]+(\\.[0-9]+)?$' THEN
-                            (regexp_replace(range, '.*-(\\d+(?:\\.\\d+)?)', '\\1'))::numeric
-                        ELSE 0
-                    END,
-                    0
-                )
-            ) AS total_distance
-        FROM indents
-        WHERE range IS NOT NULL
+    # ───────── MASTER MODEL RATE QUERY ───────── #
+    material_rate_sql = """
+        SELECT transport_rate
+        FROM master_model
+        WHERE product = %s
+        LIMIT 1
     """
 
-    # Apply same date filter for range aggregation
-    if start_date and end_date:
-        range_query += f" AND indent_date BETWEEN '{start_date}' AND '{end_date}'"
-    elif start_date:
-        range_query += f" AND indent_date >= '{start_date}'"
-    elif end_date:
-        range_query += f" AND indent_date <= '{end_date}'"
-
-    range_query += " GROUP BY vehicle_number"
-
-    cur.execute(range_query)
-    range_data = {row['vehicle_id']: safe_decimal(row['total_distance']) for row in cur.fetchall()}
-
-    cur.close()
-    conn.close()
-
-    # ─────────────── Calculations ─────────────── #
-    from collections import defaultdict
     from decimal import Decimal
+    from collections import defaultdict
 
     routes = []
     summary = defaultdict(lambda: defaultdict(Decimal))
 
-    for data in rows:
-        no_of_buckets = safe_decimal(data.get('no_of_buckets'))
-        load_per_bucket = safe_decimal(data.get('load_per_bucket'))
-        vehicle_avg = safe_decimal(data.get('vehicle_avg'))
-        total_km = safe_decimal(calculate_distance(data.get('pickup_location'), data.get('drop_location')))
+    # ───────── MAIN CALCULATION LOOP (UNCHANGED LOGIC) ───────── #
+    for r in rows:
 
-        total_load = no_of_buckets * load_per_bucket
-        revenue = total_load * vehicle_avg
-        fuel_cost = total_km * cost_per_km_fuel
-        total_cost = fuel_cost + toll_tax_per_trip + misc_cost_per_trip
-        pnl = revenue - total_cost
+        # Step-1 ➜ Distance
+        base_distance = safe_decimal(r['total_distance'])
 
-        vehicle_id = data['vehicle_id']
-        total_distance_travelled = range_data.get(str(vehicle_id), Decimal(0))
+        # Step-2 ➜ Distance + 20 KM
+        adjusted_distance = base_distance + Decimal(20)
+
+        # vehicle_no = (r['vehicle_id'] or '').upper()
+        #
+        # if 'CNG' not in vehicle_no:
+        #     continue
+
+        # Step-3 ➜ (Distance + 20) / 6 × CNG Rate (for ALL vehicles)
+        fuel_rate = Decimal(88)
+
+        distance_cost = (adjusted_distance / Decimal(6)) * fuel_rate
+
+        # distance_cost = (adjusted_distance / Decimal(6)) * fuel_rate
+
+        # Step-4 ➜ Buckets × Material Rate
+        no_of_buckets = safe_decimal(r['no_of_buckets'])
+
+        cur.execute(material_rate_sql, (r['material'],))
+        rate_row = cur.fetchone()
+        material_rate = safe_decimal(rate_row['transport_rate']) if rate_row else Decimal(0)
+
+        material_cost = no_of_buckets * material_rate
+
+        # ✅ FINAL COST
+        total_cost = distance_cost + material_cost
+
+        vehicle_id = r['vehicle_id']
 
         trip = {
             'Vehicle ID': vehicle_id,
-            'Vehicle Name': data.get('vehicle_name', ''),
-            'Driver Name': data.get('driver_name', ''),
-            'Status': data.get('status', ''),
-            'Type': data.get('type', ''),
-            'Group': data.get('group', ''),
-            'Customer': data.get('customer_name', ''),
-            'Material': data.get('material', ''),
-            'LR No.': data.get('lr_no', ''),
-            'Pickup': data.get('pickup_location', ''),
-            'Drop': data.get('drop_location', ''),
-            'No. Buckets': no_of_buckets,
-            'Load/Bucket': load_per_bucket,
-            'Total Load': total_load,
-            'Fuel Cost': fuel_cost,
-            'Total Cost': total_cost,
-            'Revenue': revenue,
-            'PnL': pnl,
-            'Total Distance Travelled': total_distance_travelled
+            'Driver Name': r['driver_name'],
+            'Indent': r['indent'],
+            'Material': r['material'],
+            'Distance (KM)': base_distance,
+            'Material Cost': material_cost,
+            'Total Cost Per Trip': total_cost
         }
+
         routes.append(trip)
 
-        # Aggregate totals per vehicle
+        # ───────── SUMMARY ───────── #
         summary[vehicle_id]['Vehicle ID'] = vehicle_id
-        summary[vehicle_id]['Vehicle Name'] = data.get('vehicle_name', '')
-        summary[vehicle_id]['Revenue'] += revenue
-        summary[vehicle_id]['Fuel_Cost'] += fuel_cost
-        summary[vehicle_id]['Total_Cost'] += total_cost
-        summary[vehicle_id]['PnL'] += pnl
         summary[vehicle_id]['Trips'] += 1
-        summary[vehicle_id]['Total Distance Travelled'] = total_distance_travelled
+        summary[vehicle_id]['Total Cost'] += total_cost
 
-    # ─────────────── Top 5 Vehicles by Revenue ─────────────── #
-    top_vehicles = sorted(summary.values(), key=lambda x: x['Revenue'], reverse=True)[:5]
-
-    # ─────────────── CSV Export ─────────────── #
+    # ───────── CSV EXPORT ───────── #
     if export_csv.lower() == 'csv':
         import pandas as pd, io
         df = pd.DataFrame(routes)
@@ -1110,21 +1088,25 @@ def financial():
         df.to_csv(output, index=False)
         output.seek(0)
         response = make_response(output.getvalue())
-        response.headers["Content-Disposition"] = "attachment; filename=financial_trips.csv"
-        response.headers["Content-type"] = "text/csv"
+        response.headers["Content-Disposition"] = "attachment; filename=trip_costing.csv"
+        response.headers["Content-Type"] = "text/csv"
         return response
 
-    # ─────────────── Render Template ─────────────── #
+    cur.close()
+    conn.close()
+
     return render_template(
         "financial_dashboard.html",
         routes=routes,
         summary=summary,
-        top_vehicles=top_vehicles,
         vehicle_filter=vehicle_filter,
         driver_filter=driver_filter,
         start_date=start_date,
         end_date=end_date
     )
+
+
+
 
 
 # -------------------------- Unused/Placeholder Routes --------------------------
