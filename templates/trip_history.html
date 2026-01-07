@@ -122,7 +122,13 @@
     data-created="{{ t.created_at.strftime('%Y-%m-%d') if t.created_at else '' }}"
 >
     <td>{{ t.id }}</td>
-    <td>{{ t.indent_id }}</td>
+    <td>
+        <a href="/def?indent_id={{ t.indent_id }}"
+           class="text-decoration-none fw-bold text-primary">
+            {{ t.indent_id }}
+        </a>
+    </td>
+
     <td>{{ t.customer_name }}</td>
     <td>{{ t.vehicle_no }}</td>
     <td>{{ t.driver_name }}</td>

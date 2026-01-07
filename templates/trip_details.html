@@ -4,18 +4,40 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
 
 <div class="container-fluid py-4">
+
+    <!-- ================= HEADER ================= -->
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2 class="text-dark" style="font-family: 'Inter', sans-serif; font-weight: 600;">
-            <i class="bi bi-geo-alt-fill text-primary me-2"></i>Trip Monitoring Flow
-        </h2>
+        <div>
+            <h2 class="text-dark mb-1" style="font-family: 'Inter', sans-serif; font-weight: 600;">
+                <i class="bi bi-geo-alt-fill text-primary me-2"></i>Trip Monitoring Flow
+            </h2>
+
+            {% if indent_id %}
+            <div class="small">
+                Indent ID :
+                <a href="/def?indent_id={{ indent_id }}"
+                   class="fw-semibold text-primary text-decoration-none">
+                    {{ indent_id }}
+                </a>
+            </div>
+            {% endif %}
+        </div>
+
         <div class="text-muted small">
-            <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2">System Active</span>
+            <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2">
+                System Active
+            </span>
         </div>
     </div>
 
-    <div class="card shadow-sm border-0" style="border-radius: 20px; background: #ffffff;">
-        <div id="tripGraph" style="height: 580px; width: 100%; border-radius: 20px;"></div>
+    <!-- ================= GRAPH CARD ================= -->
+    <div class="card shadow-sm border-0"
+         style="border-radius: 20px; background: #ffffff;">
+        <div id="tripGraph"
+             style="height: 580px; width: 100%; border-radius: 20px;">
+        </div>
     </div>
+
 </div>
 
 {% if table %}
@@ -42,18 +64,14 @@ document.addEventListener("DOMContentLoaded", function () {
     const indentId = "{{ indent_id }}";
     if (!indentId) return;
 
-    /* UPDATED HELPER FUNCTION: STRICT IST CONVERSION */
     function formatToIST(dateString) {
-        if (!dateString || dateString === "---" || dateString === "-" || dateString === "None") return "---";
+        if (!dateString || dateString === "---" || dateString === "-" || dateString === "None")
+            return "---";
 
         try {
-            // Check if string already contains a 'Z' or '+', if not, it might be raw local time from DB
             let date = new Date(dateString);
-
-            // If the date is invalid, try cleaning it
             if (isNaN(date.getTime())) return dateString;
 
-            // Strict IST Formatting
             return new Intl.DateTimeFormat('en-IN', {
                 timeZone: 'Asia/Kolkata',
                 day: '2-digit',
@@ -65,7 +83,6 @@ document.addEventListener("DOMContentLoaded", function () {
             }).format(date);
 
         } catch (e) {
-            console.error("Format Error:", e);
             return dateString;
         }
     }
@@ -75,9 +92,6 @@ document.addEventListener("DOMContentLoaded", function () {
         .then(data => {
             if (data.error) return;
 
-            /* ======================
-               SMART NODES DATA (WITH FIXED IST)
-            ====================== */
             const nodeDetails = [
                 { id: 1, color: "#10b981", icon: "📥", title: "RECEIVED", val: formatToIST(data.received_time) },
                 { id: 2, color: "#3b82f6", icon: "🏗️", title: "LOADING", val: formatToIST(data.loading_time) },
@@ -98,62 +112,38 @@ document.addEventListener("DOMContentLoaded", function () {
                     size: 14,
                     face: 'Inter, sans-serif',
                     color: '#334155',
-                    vadjust: 2,
                     bold: { color: '#1e293b', size: 15 }
                 },
                 color: {
                     background: '#ffffff',
-                    border: n.color,
-                    highlight: { background: '#f8fafc', border: n.color }
+                    border: n.color
                 },
                 borderWidth: 2,
-                shadow: { enabled: true, color: 'rgba(0,0,0,0.06)', size: 8, x: 0, y: 4 }
+                shadow: true
             }));
 
-            /* ======================
-               EDGES (CONNECTIONS)
-            ====================== */
             const edges = [
                 { from: 1, to: 2 }, { from: 2, to: 3 }, { from: 3, to: 4 },
-                { from: 4, to: 5 }, { from: 5, to: 6 }, { from: 6, to: 7 }, { from: 7, to: 8 }
-            ].map(e => ({
-                ...e,
-                arrows: { to: { enabled: true, scaleFactor: 0.5 } },
-                color: { color: '#cbd5e1', highlight: '#3b82f6' },
-                width: 2,
-                smooth: { type: 'cubicBezier', forceDirection: 'horizontal', roundness: 0.6 }
-            }));
+                { from: 4, to: 5 }, { from: 5, to: 6 },
+                { from: 6, to: 7 }, { from: 7, to: 8 }
+            ];
 
-            const container = document.getElementById("tripGraph");
-            const options = {
-                layout: {
-                    hierarchical: {
-                        enabled: true,
-                        direction: "LR",
-                        sortMethod: "directed",
-                        levelSeparation: 250,
-                        nodeSpacing: 160
-                    }
-                },
-                physics: false,
-                interaction: {
-                    zoomView: false,
-                    dragView: true,
-                    hover: true
-                },
-                nodes: {
-                    widthConstraint: { minimum: 180, maximum: 220 },
-                    shapeProperties: { borderRadius: 12 }
+            const network = new vis.Network(
+                document.getElementById("tripGraph"),
+                { nodes: nodes, edges: edges },
+                {
+                    layout: {
+                        hierarchical: {
+                            enabled: true,
+                            direction: "LR",
+                            levelSeparation: 250,
+                            nodeSpacing: 160
+                        }
+                    },
+                    physics: false
                 }
-            };
-
-            const network = new vis.Network(container, { nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges) }, options);
-
-            network.once('afterDrawing', function() {
-                network.fit({ animation: true });
-            });
-        })
-        .catch(err => console.error("API Error:", err));
+            );
+        });
 });
 </script>
 
