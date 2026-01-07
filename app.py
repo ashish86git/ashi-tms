@@ -302,12 +302,27 @@ def logout():
 
 
 # -------------------------- Fleet Master Routes --------------------------
+def format_date(val):
+    if not val:
+        return ''
+    if isinstance(val, str):
+        return val
+    return val.strftime('%Y-%m-%d')
+
+
+
+def format_date(val):
+    if not val:
+        return ''
+    if isinstance(val, str):
+        return val
+    return val.strftime('%Y-%m-%d')
+
 
 @app.route('/fleet_master', methods=['GET'])
 def fleet_master():
-    """Displays the fleet master data and handles filtering."""
-    if 'user' not in session:
 
+    if 'user' not in session:
         session['user'] = 'Admin'
 
     conn = get_db_connection()
@@ -325,25 +340,45 @@ def fleet_master():
         'type': row[5],
         'group': row[6],
         'status': row[7],
-        'license_plate': row[8],
+
+        # row[8] = license_plate (IGNORED)
+
         'current_meter': row[9],
-        'capacity_wei': row[10],
-        'capacity_vol': row[11],
-        'documents_expiry': row[12].strftime('%Y-%m-%d') if row[12] else '',
+        'capacity_weight_kg': row[10],
+        'capacity_vol_cbm': row[11],
+
+        'documents_expiry': row[12].strftime('%Y-%m-%d')
+            if hasattr(row[12], 'strftime') else '',
+
         'driver_id': row[13],
-        'date_of_join': row[14].strftime('%Y-%m-%d') if row[14] else '',
-        'avg': row[15] if row[15] is not None else 0
+
+        'date_of_join': row[14].strftime('%Y-%m-%d')
+            if hasattr(row[14], 'strftime') else '',
+
+        'avg': float(row[15]) if row[15] is not None else 0,
+        'fuel_type': row[16],
+        'fuel_rate': float(row[17]) if row[17] is not None else 0
+
     } for row in rows]
 
     cursor.close()
     conn.close()
 
-    return render_template('fleet_master.html', data=fleet_data, user=session['user'])
+    return render_template(
+        'fleet_master.html',
+        data=fleet_data,
+        user=session['user']
+    )
+
+
+
+
+
 
 
 @app.route('/fleet_master/add', methods=['POST'])
 def add_vehicle():
-    """Adds a new vehicle to the fleet database."""
+
     form = request.form
 
     try:
@@ -353,28 +388,40 @@ def add_vehicle():
         cursor.execute("""
             INSERT INTO fleet (
                 vehicle_id, vehicle_name, make, model, vin, type, "group", status,
-                license_plate, current_meter, capacity_weight_kg, capacity_vol_cbm,
-                documents_expiry, driver_id, date_of_join, avg
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                current_meter, capacity_weight_kg, capacity_vol_cbm,
+                documents_expiry, driver_id, date_of_join, avg,
+                fuel_type, fuel_rate
+            )
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """, (
-            form['vehicle_id'], form['vehicle_name'], form['make'], form['model'],
-            form['vin'], form['type'], form['group'], form['status'],
-            form['license_plate'], int(form['current_meter']),
-            float(form['capacity_wei']), float(form['capacity_vol']),
-            datetime.strptime(form['documents_expiry'], '%Y-%m-%d'),
-            form['driver_id'],
-            datetime.strptime(form['date_of_join'], '%Y-%m-%d'),
-            float(form.get('avg') or 0)
+            form['vehicle_id'],
+            form['vehicle_name'],
+            form['make'],
+            form['model'],
+            form['vin'],
+            form['type'],
+            form['group'],
+            form['status'],
+            int(form.get('current_meter') or 0),
+            float(form.get('capacity_weight_kg') or 0),
+            float(form.get('capacity_vol_cbm') or 0),
+            datetime.strptime(form['documents_expiry'], '%Y-%m-%d')
+                if form.get('documents_expiry') else None,
+            form.get('driver_id'),
+            datetime.strptime(form['date_of_join'], '%Y-%m-%d')
+                if form.get('date_of_join') else None,
+            float(form.get('avg') or 0),
+            form.get('fuel_type'),
+            float(form.get('fuel_rate') or 0)
         ))
 
         conn.commit()
         flash('Vehicle added successfully!', 'success')
-    except psycopg2.IntegrityError:
-        conn.rollback()
-        flash('Vehicle ID already exists.', 'danger')
+
     except Exception as e:
         conn.rollback()
         flash(f'Error: {str(e)}', 'danger')
+
     finally:
         cursor.close()
         conn.close()
@@ -384,31 +431,60 @@ def add_vehicle():
 
 @app.route('/fleet_master/edit/<vehicle_id>', methods=['GET', 'POST'])
 def edit_vehicle(vehicle_id):
-    """Edits an existing vehicle's details."""
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
+    # ================= POST =================
     if request.method == 'POST':
-        form = request.form
         try:
-            documents_expiry = form.get('documents_expiry')
-            documents_expiry = datetime.strptime(documents_expiry, '%Y-%m-%d').date() if documents_expiry else None
-            date_of_join = form.get('date_of_join')
-            date_of_join = datetime.strptime(date_of_join, '%Y-%m-%d').date() if date_of_join else None
+            documents_expiry = (
+                datetime.strptime(request.form.get('documents_expiry'), '%Y-%m-%d').date()
+                if request.form.get('documents_expiry') else None
+            )
+
+            date_of_join = (
+                datetime.strptime(request.form.get('date_of_join'), '%Y-%m-%d').date()
+                if request.form.get('date_of_join') else None
+            )
 
             cursor.execute("""
-                UPDATE fleet
-                SET vehicle_name = %s, driver_id = %s, make = %s, model = %s, vin = %s,
-                    type = %s, "group" = %s, status = %s, license_plate = %s,
-                    current_meter = %s, capacity_weight_kg = %s, capacity_vol_cbm = %s,
-                    documents_expiry = %s, date_of_join = %s, avg = %s
-                WHERE vehicle_id = %s
+                UPDATE fleet SET
+                    vehicle_name=%s,
+                    make=%s,
+                    model=%s,
+                    vin=%s,
+                    type=%s,
+                    "group"=%s,
+                    status=%s,
+                    current_meter=%s,
+                    capacity_weight_kg=%s,
+                    capacity_vol_cbm=%s,
+                    documents_expiry=%s,
+                    driver_id=%s,
+                    date_of_join=%s,
+                    avg=%s,
+                    fuel_type=%s,
+                    fuel_rate=%s
+                WHERE vehicle_id=%s
             """, (
-                form.get('vehicle_name'), form.get('assigned_driver'), form.get('make'),
-                form.get('model'), form.get('vin'), form.get('type'), form.get('group'),
-                form.get('status'), form.get('license_plate'), int(form.get('current_meter') or 0),
-                float(form.get('capacity_weight_kg') or 0), float(form.get('capacity_vol_cbm') or 0),
-                documents_expiry, date_of_join, float(form.get('avg') or 0), vehicle_id
+                request.form.get('vehicle_name'),
+                request.form.get('make'),
+                request.form.get('model'),
+                request.form.get('vin'),
+                request.form.get('type'),
+                request.form.get('group'),
+                request.form.get('status'),
+                int(request.form.get('current_meter') or 0),
+                float(request.form.get('capacity_weight_kg') or 0),
+                float(request.form.get('capacity_vol_cbm') or 0),
+                documents_expiry,
+                request.form.get('driver_id'),
+                date_of_join,
+                float(request.form.get('avg') or 0),
+                request.form.get('fuel_type'),
+                float(request.form.get('fuel_rate') or 0),
+                vehicle_id
             ))
 
             conn.commit()
@@ -419,32 +495,72 @@ def edit_vehicle(vehicle_id):
             conn.rollback()
             flash(f'Error updating vehicle: {str(e)}', 'danger')
             return redirect('/fleet_master')
+
         finally:
             cursor.close()
             conn.close()
 
-    # GET method
-    cursor.execute("SELECT * FROM fleet WHERE vehicle_id = %s", (vehicle_id,))
+    # ================= GET =================
+    cursor.execute("SELECT * FROM fleet WHERE vehicle_id=%s", (vehicle_id,))
     row = cursor.fetchone()
     cursor.close()
     conn.close()
 
     if not row:
-        flash('Vehicle not found.', 'warning')
+        flash('Vehicle not found', 'warning')
         return redirect('/fleet_master')
 
     vehicle_data = {
-        'vehicle_id': row[0], 'vehicle_name': row[1], 'make': row[2],
-        'model': row[3], 'vin': row[4], 'type': row[5], 'group': row[6],
-        'status': row[7], 'license_plate': row[8], 'current_meter': row[9],
-        'capacity_weight_kg': row[10], 'capacity_vol_cbm': row[11],
-        'documents_expiry': row[12].strftime('%Y-%m-%d') if row[12] else '',
+        'vehicle_id': row[0],
+        'vehicle_name': row[1],
+        'make': row[2],
+        'model': row[3],
+        'vin': row[4],
+        'type': row[5],
+        'group': row[6],
+        'status': row[7],
+
+        # row[8] license_plate ignored
+
+        'current_meter': row[9],
+        'capacity_weight_kg': row[10],
+        'capacity_vol_cbm': row[11],
+
+        'documents_expiry': row[12].strftime('%Y-%m-%d')
+            if hasattr(row[12], 'strftime') else '',
+
         'driver_id': row[13],
-        'date_of_join': row[14].strftime('%Y-%m-%d') if row[14] else '',
-        'avg': row[15] if row[15] is not None else 0
+
+        'date_of_join': row[14].strftime('%Y-%m-%d')
+            if hasattr(row[14], 'strftime') else '',
+
+        'avg': float(row[15]) if row[15] is not None else 0,
+        'fuel_type': row[16],
+        'fuel_rate': float(row[17]) if row[17] is not None else 0
     }
 
-    return render_template('edit_vehicle.html', vehicle=vehicle_data, user=session.get('user', ''))
+    return render_template(
+        'edit_vehicle.html',
+        vehicle=vehicle_data,
+        user=session.get('user', '')
+    )
+
+@app.route('/fleet_master/delete/<vehicle_id>', methods=['POST'])
+def delete_vehicle(vehicle_id):
+    """Deletes a vehicle from the fleet."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM fleet WHERE vehicle_id = %s", (vehicle_id,))
+        conn.commit()
+        flash('Vehicle deleted successfully!', 'success')
+    except Exception as e:
+        conn.rollback()
+        flash(f'Error deleting vehicle: {str(e)}', 'danger')
+    finally:
+        cursor.close()
+        conn.close()
+    return redirect('/fleet_master')
 
 
 # -------------------------- Driver Master Routes --------------------------
@@ -652,11 +768,14 @@ def get_status():
 # --- Main Route Modification: Fetch Status Data ---
 @app.route("/def", methods=["GET", "POST"])
 def def_page():
+    indent_id = request.args.get("indent_id")
     """Main route for displaying and adding indents."""
+
     valid_vehicles = get_all_vehicle_numbers()
     conn = get_db_connection()
     cursor = conn.cursor()
 
+    # ======================= POST LOGIC (UNCHANGED) =======================
     if request.method == "POST":
         form_data = request.form.to_dict(flat=False)
         vehicle_no = request.form.get("vehicle_number", "").strip()
@@ -668,7 +787,6 @@ def def_page():
             return redirect(url_for("def_page"))
 
         try:
-            # Existing logic for separating customers — unchanged
             customers = []
             for key, values in form_data.items():
                 if key.startswith("customers["):
@@ -677,17 +795,9 @@ def def_page():
                     field = parts[2].replace("]", "")
                     while len(customers) <= index:
                         customers.append({})
-                    # Data retrieval is made safer by providing "" as default
                     customers[index][field] = values[0] if values else ""
 
-                    # Insert each customer indent
             for cust in customers:
-                # ----------------------------------------------------------------
-                # FIX: Using .get("key", "") for all form fields that expect strings
-                # to prevent Python 'None' from causing string formatting errors.
-                # ----------------------------------------------------------------
-
-                # General Indent Fields
                 indent_date = request.form.get("indent_date", "")
                 indent_number = request.form.get("indent", "")
                 allocation_date = request.form.get("allocation_date", "")
@@ -701,54 +811,52 @@ def def_page():
                 ft_number = request.form.get("freight_tiger_number", "")
                 ft_month = request.form.get("freight_tiger_month", "")
 
-                # Customer Specific Fields
                 cust_name = cust.get("name", "")
                 cust_range = cust.get("range", "")
                 drop_location = cust.get("drop_location", "")
                 cust_lr_no = cust.get("lr_no", "")
                 cust_material = cust.get("material", "")
 
-                # Numeric Fields (clean_numeric handles the conversion, but safe retrieval is still good)
-                load_per_bucket = clean_numeric(cust.get("load_per_bucket", None))
-                no_of_buckets = clean_numeric(cust.get("no_of_buckets", None))
-                total_load = clean_numeric(cust.get("total_load", None))
+                load_per_bucket = clean_numeric(cust.get("load_per_bucket"))
+                no_of_buckets = clean_numeric(cust.get("no_of_buckets"))
+                total_load = clean_numeric(cust.get("total_load"))
 
                 cursor.execute("""
                     INSERT INTO indents (
                         indent_date, indent, allocation_date, customer_name, "range",
                         pickup_location, location, vehicle_number, vehicle_model,
                         vehicle_based, lr_no, material, load_per_bucket, no_of_buckets,
-                        t_load, pod_received, freight_tiger_number, freight_tiger_month, received_time,
-                        loading_time, parking_time, exit_time,
+                        t_load, pod_received, freight_tiger_number, freight_tiger_month,
+                        received_time, loading_time, parking_time, exit_time,
                         driver_name, driver_contact
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-            %s, %s, %s, %s, %s, %s)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
+                            %s,%s,%s,%s,%s,%s)
                 """, (
-                    indent_date,  # 1
-                    indent_number,  # 2
-                    allocation_date,  # 3
-                    cust_name,  # 4
-                    cust_range,  # 5
-                    pickup_location,  # 6
-                    drop_location,  # 7
-                    vehicle_no,  # 8
-                    vehicle_model,  # 9
-                    vehicle_based,  # 10
-                    cust_lr_no,  # 11
-                    cust_material,  # 12
-                    load_per_bucket,  # 13
-                    no_of_buckets,  # 14
-                    total_load,  # 15
-                    pod_received,  # 16
-                    ft_number,  # 17
-                    ft_month,  # 18
-                    None,  # 19
-                    None,  # 20
-                    None,   #21
-                    None,   # 22
-                    driver_name,  # 23 NEW
-                    driver_contact  # 24 NEW
+                    indent_date,
+                    indent_number,
+                    allocation_date,
+                    cust_name,
+                    cust_range,
+                    pickup_location,
+                    drop_location,
+                    vehicle_no,
+                    vehicle_model,
+                    vehicle_based,
+                    cust_lr_no,
+                    cust_material,
+                    load_per_bucket,
+                    no_of_buckets,
+                    total_load,
+                    pod_received,
+                    ft_number,
+                    ft_month,
+                    None,
+                    None,
+                    None,
+                    None,
+                    driver_name,
+                    driver_contact
                 ))
 
             conn.commit()
@@ -756,24 +864,62 @@ def def_page():
 
         except Exception as e:
             conn.rollback()
-            # The error message now correctly shows the specific database error
             flash(f"Error creating indent: {str(e)}", "danger")
 
         cursor.close()
         conn.close()
         return redirect(url_for("def_page"))
 
-    # --- Fetch all indents (showing new tracking fields) ---
-    cursor.execute("SELECT * FROM indents ORDER BY indent_date DESC")
+    # ======================= GET LOGIC + PAGINATION =======================
+
+    page = request.args.get("page", 1, type=int)
+    per_page = 20
+    offset = (page - 1) * per_page
+
+    # ---------- total rows ----------
+    if indent_id:
+        cursor.execute(
+            "SELECT COUNT(*) FROM indents WHERE indent = %s",
+            (indent_id,)
+        )
+    else:
+        cursor.execute("SELECT COUNT(*) FROM indents")
+
+    total_rows = cursor.fetchone()[0]
+    total_pages = (total_rows + per_page - 1) // per_page
+
+    # ---------- data fetch ----------
+    if indent_id:
+        cursor.execute("""
+            SELECT *
+            FROM indents
+            WHERE indent = %s
+            ORDER BY indent_date DESC
+            LIMIT %s OFFSET %s
+        """, (indent_id, per_page, offset))
+    else:
+        cursor.execute("""
+            SELECT *
+            FROM indents
+            ORDER BY indent_date DESC
+            LIMIT %s OFFSET %s
+        """, (per_page, offset))
+
     rows = cursor.fetchall()
     col_names = [desc[0] for desc in cursor.description]
     indent_data = [dict(zip(col_names, row)) for row in rows]
-    indent_data = indent_data[:50]
 
     cursor.close()
     conn.close()
 
-    return render_template("def.html", indent_data=indent_data, fleet_data=valid_vehicles)
+    return render_template(
+        "def.html",
+        indent_data=indent_data,
+        fleet_data=valid_vehicles,
+        page=page,
+        total_pages=total_pages
+    )
+
 # -------------------------- Upload Indents --------------------------
 
 @app.route("/upload_indent", methods=["POST"])
