@@ -289,5 +289,48 @@ function exportTableToExcel() {
     XLSX.writeFile(wb, "Vehicle_Expenses.xlsx");
 }
 </script>
+<script>
+function applyFilters() {
+    const vehicleVal = document.getElementById('vehicleFilter').value;
+    const fromDate = document.getElementById('fromDate').value;
+    const toDate = document.getElementById('toDate').value;
+
+    const filteredData = allRowsData.filter(d => {
+        const rowDate = new Date(d.date).setHours(0,0,0,0);
+        const from = fromDate ? new Date(fromDate).setHours(0,0,0,0) : null;
+        const to = toDate ? new Date(toDate).setHours(0,0,0,0) : null;
+
+        return (
+            (vehicleVal === 'all' || d.vehicle === vehicleVal) &&
+            (!from || rowDate >= from) &&
+            (!to || rowDate <= to)
+        );
+    });
+
+    // 🔹 TABLE ROW FILTER
+    const tableRows = document.querySelectorAll('#expenseTable tbody tr');
+    tableRows.forEach((row, idx) => {
+        const d = allRowsData[idx];
+        const rowDate = new Date(d.date).setHours(0,0,0,0);
+        const from = fromDate ? new Date(fromDate).setHours(0,0,0,0) : null;
+        const to = toDate ? new Date(toDate).setHours(0,0,0,0) : null;
+
+        const visible =
+            (vehicleVal === 'all' || d.vehicle === vehicleVal) &&
+            (!from || rowDate >= from) &&
+            (!to || rowDate <= to);
+
+        row.style.display = visible ? '' : 'none';
+    });
+
+    // 🔹 CARDS + CHARTS UPDATE
+    updateDashboard(filteredData);
+}
+
+// 🔔 EVENT LISTENERS
+document.getElementById('vehicleFilter').addEventListener('change', applyFilters);
+document.getElementById('fromDate').addEventListener('change', applyFilters);
+document.getElementById('toDate').addEventListener('change', applyFilters);
+</script>
 
 {% endblock %}
