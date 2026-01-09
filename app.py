@@ -2170,7 +2170,7 @@ def ems():
     conn = get_db_connection()
     cur = conn.cursor()
 
-    # 1️⃣ Main table data (for rows)
+    # ================= TABLE DATA =================
     cur.execute("""
         SELECT *
         FROM vehicle_expenses
@@ -2178,22 +2178,26 @@ def ems():
     """)
     rows = cur.fetchall()
 
-    # 2️⃣ Vehicle dropdown ke liye
+    # ================= VEHICLE LIST (FILTER + CHART) =================
     cur.execute("""
-        SELECT DISTINCT vehicle_no
+        SELECT vehicle_no, SUM(total_trip_cost)
         FROM vehicle_expenses
-        ORDER BY vehicle_no
+        GROUP BY vehicle_no
     """)
-    vehicles = [v[0] for v in cur.fetchall()]
+    chart_data = cur.fetchall()
 
     cur.close()
     conn.close()
+
+    # 🔹 vehicles dropdown ke liye
+    vehicles = [c[0] for c in chart_data if c[0] is not None]
 
     return render_template(
         "ems.html",
         rows=rows,
         vehicles=vehicles
     )
+
 
 
 if __name__ == '__main__':
