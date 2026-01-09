@@ -2162,6 +2162,38 @@ def to_ist(dt):
     return (dt + timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d %H:%M:%S")
 
 # -------------------------------------------------
+@app.route("/ems")
+def ems():
+    if 'user' not in session:
+        return redirect('/')
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # 1️⃣ Main table data (for rows)
+    cur.execute("""
+        SELECT *
+        FROM vehicle_expenses
+        ORDER BY trip_date DESC NULLS LAST
+    """)
+    rows = cur.fetchall()
+
+    # 2️⃣ Vehicle dropdown ke liye
+    cur.execute("""
+        SELECT DISTINCT vehicle_no
+        FROM vehicle_expenses
+        ORDER BY vehicle_no
+    """)
+    vehicles = [v[0] for v in cur.fetchall()]
+
+    cur.close()
+    conn.close()
+
+    return render_template(
+        "ems.html",
+        rows=rows,
+        vehicles=vehicles
+    )
 
 
 if __name__ == '__main__':
