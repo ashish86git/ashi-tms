@@ -1,0 +1,293 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<style>
+    :root {
+        --navbar-red: #ef4444;
+        --navbar-red-dark: #dc2626;
+        --orange: #f97316;
+        --bg: #ffffff;
+        --light-gray: #f3f4f6;
+    }
+
+    body {
+        background-color: #f9fafb;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    .company-header {
+        background: linear-gradient(135deg, var(--navbar-red-dark) 0%, var(--orange) 100%);
+        color: white;
+        padding: 25px;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(239, 68, 68, 0.2);
+    }
+
+    .btn-export {
+        background-color: #ffffff;
+        color: var(--navbar-red-dark);
+        border: none;
+        font-weight: 700;
+        transition: 0.3s;
+    }
+    .btn-export:hover {
+        background-color: var(--light-gray);
+        color: var(--navbar-red);
+    }
+
+    .stat-card {
+        border: none;
+        border-bottom: 4px solid var(--orange);
+        border-radius: 10px;
+        background: white;
+        transition: transform 0.2s;
+    }
+    .stat-card:hover { transform: translateY(-5px); }
+    .card-total { border-bottom: 4px solid var(--navbar-red-dark); }
+
+    .filter-section {
+        background: white;
+        border-radius: 12px;
+        border: 1px solid #e5e7eb;
+    }
+
+    .form-label {
+        color: #4b5563;
+        font-size: 0.85rem;
+        letter-spacing: 0.5px;
+    }
+
+    .chart-box {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        border: 1px solid #e5e7eb;
+        height: 400px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .chart-container {
+        flex-grow: 1;
+        position: relative;
+    }
+
+    .table-container {
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid #e5e7eb;
+        background: white;
+    }
+
+    .thead-company {
+        background-color: var(--navbar-red);
+        color: white;
+    }
+
+    .table thead th {
+        font-weight: 600;
+        border: none;
+        padding: 15px;
+    }
+</style>
+
+<div class="container-fluid py-4">
+
+    <!-- HEADER -->
+    <div class="company-header d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-0">Vehicle Expense Dashboard</h3>
+            <p class="mb-0 opacity-75 small text-uppercase fw-semibold">
+                Fleet Performance & Cost Tracking
+            </p>
+        </div>
+        <button onclick="exportTableToExcel()" class="btn btn-export shadow-sm px-4">
+            EXPORT EXCEL 📥
+        </button>
+    </div>
+
+    <!-- SUMMARY CARDS -->
+    <div class="row g-4 mb-4 text-center">
+        <div class="col-md-4">
+            <div class="card stat-card shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="text-muted fw-bold small mb-2">CHARGING COST</h6>
+                    <h2 class="fw-bold mb-0" id="statCharging">₹ 0</h2>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card stat-card shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="text-muted fw-bold small mb-2">TOLL CHARGES</h6>
+                    <h2 class="fw-bold mb-0" id="statToll">₹ 0</h2>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card stat-card card-total shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="text-muted fw-bold small mb-2">TOTAL TRIP COST</h6>
+                    <h2 class="fw-bold mb-0" id="statTotal">₹ 0</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FILTERS -->
+    <div class="filter-section p-4 shadow-sm mb-4">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label fw-bold">VEHICLE FILTER</label>
+                <select id="vehicleFilter" class="form-select bg-light border-0">
+                    <option value="all">View All Vehicles</option>
+                    {% for v in vehicles %}
+                    <option value="{{ v }}">{{ v }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label fw-bold">FROM DATE</label>
+                <input type="date" id="fromDate" class="form-control bg-light border-0">
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label fw-bold">TO DATE</label>
+                <input type="date" id="toDate" class="form-control bg-light border-0">
+            </div>
+        </div>
+    </div>
+
+    <!-- CHARTS -->
+    <div class="row g-4 mb-4">
+        <div class="col-lg-7">
+            <div class="chart-box shadow-sm">
+                <h6 class="fw-bold text-muted mb-3">EXPENDITURE TREND</h6>
+                <div class="chart-container">
+                    <canvas id="dateTrendChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-5">
+            <div class="chart-box shadow-sm">
+                <h6 class="fw-bold text-muted mb-3">VEHICLE-WISE SUMMARY</h6>
+                <div class="chart-container">
+                    <canvas id="vehicleSummaryChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TABLE -->
+    <div class="table-container shadow-sm mb-5">
+        <table class="table table-hover align-middle mb-0" id="expenseTable">
+            <thead class="thead-company">
+                <tr>
+                    <th>Vehicle</th>
+                    <th>Indent</th>
+                    <th>Date</th>
+                    <th>Trip Route</th>
+                    <th>Charging</th>
+                    <th>Toll</th>
+                    <th class="text-end">Total Cost</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in rows %}
+                <tr>
+                    <td class="fw-bold">{{ r[1] }}</td>
+                    <td>{{ r[2] }}</td>
+                    <td>{{ r[3] }}</td>
+                    <td class="small text-muted">{{ r[4] }} → {{ r[5] }}</td>
+                    <td>₹ {{ r[6] }}</td>
+                    <td>₹ {{ r[7] }}</td>
+                    <td class="text-end fw-bold">₹ {{ r[11] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<script>
+const allRowsData = [
+    {% for r in rows %}
+    {
+        vehicle: "{{ r[1] }}",
+        date: "{{ r[3] }}",
+        charging: parseFloat("{{ r[6] }}") || 0,
+        toll: parseFloat("{{ r[7] }}") || 0,
+        cost: parseFloat("{{ r[11] }}") || 0
+    },
+    {% endfor %}
+];
+
+let dateChart, summaryChart;
+
+function updateDashboard(data) {
+    let charging = 0, toll = 0, total = 0;
+
+    data.forEach(d => {
+        charging += d.charging;
+        toll += d.toll;
+        total += d.cost;
+    });
+
+    statCharging.innerText = `₹ ${charging.toLocaleString('en-IN')}`;
+    statToll.innerText = `₹ ${toll.toLocaleString('en-IN')}`;
+    statTotal.innerText = `₹ ${total.toLocaleString('en-IN')}`;
+
+    if (dateChart) dateChart.destroy();
+    if (summaryChart) summaryChart.destroy();
+
+    const dateMap = {};
+    data.forEach(d => dateMap[d.date] = (dateMap[d.date] || 0) + d.cost);
+
+    dateChart = new Chart(dateTrendChart, {
+        type: 'line',
+        data: {
+            labels: Object.keys(dateMap),
+            datasets: [{
+                data: Object.values(dateMap),
+                borderColor: '#ef4444',
+                fill: true
+            }]
+        },
+        options: { maintainAspectRatio: false }
+    });
+
+    const vehicleMap = {};
+    data.forEach(d => vehicleMap[d.vehicle] = (vehicleMap[d.vehicle] || 0) + d.cost);
+
+    summaryChart = new Chart(vehicleSummaryChart, {
+        type: 'bar',
+        data: {
+            labels: Object.keys(vehicleMap),
+            datasets: [{
+                data: Object.values(vehicleMap),
+                backgroundColor: '#f97316'
+            }]
+        },
+        options: { maintainAspectRatio: false }
+    });
+}
+
+updateDashboard(allRowsData);
+
+function exportTableToExcel() {
+    const table = document.getElementById("expenseTable");
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.table_to_sheet(table);
+    XLSX.utils.book_append_sheet(wb, ws, "Expenses");
+    XLSX.writeFile(wb, "Vehicle_Expenses.xlsx");
+}
+</script>
+
+{% endblock %}
