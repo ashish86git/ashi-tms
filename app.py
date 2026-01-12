@@ -1100,7 +1100,7 @@ def financial():
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # ───────── BASE QUERY (UNIQUE INDENT – LATEST TRIP ONLY) ───────── #
+    # ───────── BASE QUERY ───────── #
     query = """
     WITH latest_trips AS (
         SELECT
@@ -1130,82 +1130,62 @@ def financial():
     """
 
     filters = []
+    if vehicle_filter: filters.append("lt.vehicle_id = %s")
+    if driver_filter: filters.append("lt.driver_name ILIKE %s")
+    if start_date and end_date: filters.append("i.indent_date BETWEEN %s AND %s")
+    elif start_date: filters.append("i.indent_date >= %s")
+    elif end_date: filters.append("i.indent_date <= %s")
 
-    if vehicle_filter:
-        filters.append("lt.vehicle_id = %s")
-    if driver_filter:
-        filters.append("lt.driver_name ILIKE %s")
-    if start_date and end_date:
-        filters.append("i.indent_date BETWEEN %s AND %s")
-    elif start_date:
-        filters.append("i.indent_date >= %s")
-    elif end_date:
-        filters.append("i.indent_date <= %s")
-
-    if filters:
-        query += " AND " + " AND ".join(filters)
+    if filters: query += " AND " + " AND ".join(filters)
 
     params = []
-    if vehicle_filter:
-        params.append(vehicle_filter)
-    if driver_filter:
-        params.append(f"%{driver_filter}%")
-    if start_date and end_date:
-        params.extend([start_date, end_date])
-    elif start_date:
-        params.append(start_date)
-    elif end_date:
-        params.append(end_date)
+    if vehicle_filter: params.append(vehicle_filter)
+    if driver_filter: params.append(f"%{driver_filter}%")
+    if start_date and end_date: params.extend([start_date, end_date])
+    elif start_date: params.append(start_date)
+    elif end_date: params.append(end_date)
 
     cur.execute(query, params)
     rows = cur.fetchall()
 
-    # ───────── MASTER MODEL RATE QUERY ───────── #
-    material_rate_sql = """
-        SELECT transport_rate
-        FROM master_model
-        WHERE product = %s
-        LIMIT 1
-    """
-
     from decimal import Decimal
     from collections import defaultdict
+
+    # ───────── GROUP BUCKETS BY INDENT (Same Indent Logic) ───────── #
+    indent_totals = defaultdict(Decimal)
+    for r in rows:
+        indent_id = r['indent']
+        indent_totals[indent_id] += safe_decimal(r['no_of_buckets'])
 
     routes = []
     summary = defaultdict(lambda: defaultdict(Decimal))
 
-    # ───────── MAIN CALCULATION LOOP (UNCHANGED LOGIC) ───────── #
+    # ───────── MAIN CALCULATION LOOP ───────── #
     for r in rows:
-
-        # Step-1 ➜ Distance
+        # 1. Distance Calculation
         base_distance = safe_decimal(r['total_distance'])
-
-        # Step-2 ➜ Distance + 20 KM
         adjusted_distance = base_distance + Decimal(20)
 
-        # vehicle_no = (r['vehicle_id'] or '').upper()
-        #
-        # if 'CNG' not in vehicle_no:
-        #     continue
-
-        # Step-3 ➜ (Distance + 20) / 6 × CNG Rate (for ALL vehicles)
+        # 2. Fuel Cost: ((Distance + 20) / 6) * 88
         fuel_rate = Decimal(88)
+        fuel_cost = (adjusted_distance / Decimal(6)) * fuel_rate
 
-        distance_cost = (adjusted_distance / Decimal(6)) * fuel_rate
-
-        # distance_cost = (adjusted_distance / Decimal(6)) * fuel_rate
-
-        # Step-4 ➜ Buckets × Material Rate
-        no_of_buckets = safe_decimal(r['no_of_buckets'])
-
-        cur.execute(material_rate_sql, (r['material'],))
+        # 3. Unloading Cost: Total Buckets for this Indent * Unloading Rate from Master
+        # Corrected Column Names: unloading_rate and product
+        cur.execute('SELECT unloading_rate FROM master_model WHERE product = %s LIMIT 1', (r['material'],))
         rate_row = cur.fetchone()
-        material_rate = safe_decimal(rate_row['transport_rate']) if rate_row else Decimal(0)
+        u_rate = safe_decimal(rate_row['unloading_rate']) if rate_row else Decimal(0)
 
-        material_cost = no_of_buckets * material_rate
+        total_buckets = indent_totals[r['indent']]
+        unloading_cost = total_buckets * u_rate
 
-        # ✅ FINAL COST
-        total_cost = distance_cost + material_cost
+        # 4. Placeholder Columns (Blank as requested)
+        toll_cost = Decimal(0)
+        other_cost = Decimal(0)
+        remarks = ""
+
+        # 5. Final Total: Fuel + Unloading
+        total_cost = fuel_cost + unloading_cost
 
         vehicle_id = r['vehicle_id']
 
@@ -1215,13 +1195,17 @@ def financial():
             'Indent': r['indent'],
             'Material': r['material'],
             'Distance (KM)': base_distance,
-            'Material Cost': material_cost,
-            'Total Cost Per Trip': total_cost
+            'Fuel Cost (₹)': fuel_cost,
+            'Unloading (₹)': unloading_cost,
+            'Toll (₹)': toll_cost,
+            'Other (₹)': other_cost,
+            'Total Cost Per Trip': total_cost,
+            'Remarks': remarks
         }
 
         routes.append(trip)
 
-        # ───────── SUMMARY ───────── #
+        # Summary Update
         summary[vehicle_id]['Vehicle ID'] = vehicle_id
         summary[vehicle_id]['Trips'] += 1
         summary[vehicle_id]['Total Cost'] += total_cost
@@ -1250,7 +1234,6 @@ def financial():
         start_date=start_date,
         end_date=end_date
     )
-
 
 
 
