@@ -82,7 +82,7 @@
 
     <div class="kpi-card" style="background:linear-gradient(135deg,#198754,#14532d)">
         <h6>Total Profit / Loss (₹)</h6>
-        <h4>{{ "%.2f"|format(summary.values() | sum(attribute='Total Profit/Loss')) }}</h4>
+        <h4>{{ "%.2f"|format(summary.values() | sum(attribute='Profit / Loss')) }}</h4>
     </div>
 </div>
 
@@ -97,8 +97,8 @@
         <small class="fw-bold text-success">
             Revenue: ₹ {{ "%.2f"|format(s['Total Revenue']) }}
         </small><br>
-        <small class="fw-bold {{ 'text-success' if s['Total Profit/Loss'] >= 0 else 'text-danger' }}">
-            P/L: ₹ {{ "%.2f"|format(s['Total Profit/Loss']) }}
+        <small class="fw-bold {{ 'text-success' if s['Profit / Loss'] >= 0 else 'text-danger' }}">
+            P/L: ₹ {{ "%.2f"|format(s['Profit / Loss']) }}
         </small>
     </div>
 {% endfor %}
@@ -158,7 +158,6 @@
     <td>{{ r['Vehicle ID'] }}</td>
     <td>{{ r['Driver Name'] }}</td>
 
-    <!-- ✅ ONLY CHANGE IS HERE -->
     <td class="text-center fw-semibold">
         <a href="/def?indent_id={{ r['Indent'] }}"
            class="text-decoration-none text-primary fw-semibold">
