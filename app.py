@@ -1091,6 +1091,10 @@ def safe_decimal(value, default=0):
 
 @app.route('/financial')
 def financial():
+    from decimal import Decimal
+    from collections import defaultdict
+    from psycopg2.extras import RealDictCursor
+
     vehicle_filter = request.args.get('vehicle_id', '').strip()
     driver_filter = request.args.get('driver_name', '').strip()
     export_csv = request.args.get('export', '').strip()
@@ -1100,7 +1104,7 @@ def financial():
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # ───────── BASE QUERY ───────── #
+    # ---------------- BASE QUERY ---------------- #
     query = """
     WITH latest_trips AS (
         SELECT
@@ -1130,87 +1134,124 @@ def financial():
     """
 
     filters = []
-    if vehicle_filter: filters.append("lt.vehicle_id = %s")
-    if driver_filter: filters.append("lt.driver_name ILIKE %s")
-    if start_date and end_date: filters.append("i.indent_date BETWEEN %s AND %s")
-    elif start_date: filters.append("i.indent_date >= %s")
-    elif end_date: filters.append("i.indent_date <= %s")
-
-    if filters: query += " AND " + " AND ".join(filters)
-
     params = []
-    if vehicle_filter: params.append(vehicle_filter)
-    if driver_filter: params.append(f"%{driver_filter}%")
-    if start_date and end_date: params.extend([start_date, end_date])
-    elif start_date: params.append(start_date)
-    elif end_date: params.append(end_date)
+
+    if vehicle_filter:
+        filters.append("lt.vehicle_id = %s")
+        params.append(vehicle_filter)
+
+    if driver_filter:
+        filters.append("lt.driver_name ILIKE %s")
+        params.append(f"%{driver_filter}%")
+
+    if start_date and end_date:
+        filters.append("i.indent_date BETWEEN %s AND %s")
+        params.extend([start_date, end_date])
+    elif start_date:
+        filters.append("i.indent_date >= %s")
+        params.append(start_date)
+    elif end_date:
+        filters.append("i.indent_date <= %s")
+        params.append(end_date)
+
+    if filters:
+        query += " AND " + " AND ".join(filters)
 
     cur.execute(query, params)
     rows = cur.fetchall()
 
-    from decimal import Decimal
-    from collections import defaultdict
-
-    # ───────── GROUP BUCKETS BY INDENT (Same Indent Logic) ───────── #
+    # ---------------- GROUP BUCKETS PER INDENT ---------------- #
     indent_totals = defaultdict(Decimal)
     for r in rows:
-        indent_id = r['indent']
-        indent_totals[indent_id] += safe_decimal(r['no_of_buckets'])
+        indent_totals[r['indent']] += safe_decimal(r['no_of_buckets'])
 
     routes = []
     summary = defaultdict(lambda: defaultdict(Decimal))
 
-    # ───────── MAIN CALCULATION LOOP ───────── #
+    # ---------------- MAIN LOOP ---------------- #
     for r in rows:
-        # 1. Distance Calculation
-        base_distance = safe_decimal(r['total_distance'])
+
+        # ---- Clean Distance ("297.64 Km" → 297.64) ----
+        raw_distance = str(r['total_distance'])
+        base_distance = Decimal(
+            ''.join(ch for ch in raw_distance if ch.isdigit() or ch == '.')
+        )
+
         adjusted_distance = base_distance + Decimal(20)
 
-        # 2. Fuel Cost: ((Distance + 20) / 6) * 88
-        fuel_rate = Decimal(88)
-        fuel_cost = (adjusted_distance / Decimal(6)) * fuel_rate
+        # ---- Fuel Cost (UNCHANGED) ----
+        fuel_cost = (adjusted_distance / Decimal(6)) * Decimal(88)
 
-        # 3. Unloading Cost: Total Buckets for this Indent * Unloading Rate from Master
-        # Corrected Column Names: unloading_rate and product
-        cur.execute('SELECT unloading_rate FROM master_model WHERE product = %s LIMIT 1', (r['material'],))
-        rate_row = cur.fetchone()
-        u_rate = safe_decimal(rate_row['unloading_rate']) if rate_row else Decimal(0)
-
+        # ---- Total Buckets (same indent logic) ----
         total_buckets = indent_totals[r['indent']]
-        unloading_cost = total_buckets * u_rate
 
-        # 4. Placeholder Columns (Blank as requested)
+        # ---- Master Rate Mapping (product + range) ----
+        cur.execute("""
+            SELECT transport_rate, loading_rate, unloading_rate
+            FROM master_model
+            WHERE product = %s
+              AND %s BETWEEN
+                    split_part(
+                        regexp_replace(range, '[^0-9\\-]', '', 'g'),
+                        '-', 1
+                    )::numeric
+                AND split_part(
+                        regexp_replace(range, '[^0-9\\-]', '', 'g'),
+                        '-', 2
+                    )::numeric
+            LIMIT 1
+        """, (r['material'], base_distance))
+
+        rate_row = cur.fetchone()
+
+        transport_rate = safe_decimal(rate_row['transport_rate']) if rate_row else Decimal(0)
+        loading_rate = safe_decimal(rate_row['loading_rate']) if rate_row else Decimal(0)
+        unloading_rate = safe_decimal(rate_row['unloading_rate']) if rate_row else Decimal(0)
+
+        # ---- Costs ----
+        loading_cost = loading_rate * total_buckets
+        unloading_cost = unloading_rate * total_buckets
+
         toll_cost = Decimal(0)
         other_cost = Decimal(0)
-        remarks = ""
 
-        # 5. Final Total: Fuel + Unloading
-        total_cost = fuel_cost + unloading_cost
+        # ---- Revenue ----
+        revenue = base_distance * transport_rate
 
-        vehicle_id = r['vehicle_id']
+        # ---- Total Cost ----
+        total_cost = fuel_cost + loading_cost + unloading_cost
+
+        # ---- Profit / Loss ----
+        profit_loss = revenue - total_cost
 
         trip = {
-            'Vehicle ID': vehicle_id,
+            'Vehicle ID': r['vehicle_id'],
             'Driver Name': r['driver_name'],
             'Indent': r['indent'],
             'Material': r['material'],
             'Distance (KM)': base_distance,
             'Fuel Cost (₹)': fuel_cost,
+            'Loading (₹)': loading_cost,
             'Unloading (₹)': unloading_cost,
+            'Revenue (₹)': revenue,
             'Toll (₹)': toll_cost,
             'Other (₹)': other_cost,
             'Total Cost Per Trip': total_cost,
-            'Remarks': remarks
+            'Profit / Loss (₹)': profit_loss,
+            'Remarks': ""
         }
 
         routes.append(trip)
 
-        # Summary Update
-        summary[vehicle_id]['Vehicle ID'] = vehicle_id
-        summary[vehicle_id]['Trips'] += 1
-        summary[vehicle_id]['Total Cost'] += total_cost
+        # ---- Summary ----
+        vid = r['vehicle_id']
+        summary[vid]['Vehicle ID'] = vid
+        summary[vid]['Trips'] += 1
+        summary[vid]['Total Cost'] += total_cost
+        summary[vid]['Total Revenue'] += revenue
+        summary[vid]['Profit / Loss'] += profit_loss
 
-    # ───────── CSV EXPORT ───────── #
+    # ---------------- CSV EXPORT ---------------- #
     if export_csv.lower() == 'csv':
         import pandas as pd, io
         df = pd.DataFrame(routes)
@@ -1218,7 +1259,7 @@ def financial():
         df.to_csv(output, index=False)
         output.seek(0)
         response = make_response(output.getvalue())
-        response.headers["Content-Disposition"] = "attachment; filename=trip_costing.csv"
+        response.headers["Content-Disposition"] = "attachment; filename=trip_financials.csv"
         response.headers["Content-Type"] = "text/csv"
         return response
 
