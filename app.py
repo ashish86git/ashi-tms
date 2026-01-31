@@ -1125,6 +1125,7 @@ def financial():
         i.indent_date,
         i.no_of_buckets,
         i.material,
+        i.t_load,  -- <-- Added t_load column
         lt.total_distance
     FROM latest_trips lt
     LEFT JOIN indents i
@@ -1209,7 +1210,9 @@ def financial():
         unloading_rate = safe_decimal(rate_row['unloading_rate']) if rate_row else Decimal(0)
 
         # ---- Costs ----
-        loading_cost = loading_rate * total_buckets
+        # Convert t_load (kg) → ton for loading rate calculation
+        load_in_ton = safe_decimal(r.get('t_load', 0)) / Decimal(1000)
+        loading_cost = loading_rate * load_in_ton
         unloading_cost = unloading_rate * total_buckets
 
         toll_cost = Decimal(0)
