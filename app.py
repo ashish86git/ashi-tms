@@ -1768,7 +1768,6 @@ def optimize():
 
 @app.route('/trip-history', methods=['GET'])
 def trip_history():
-    # Filters
     vehicle_filter = request.args.get('vehicle')
     indent_filter = request.args.get('indent')
     status_filter = request.args.get('status')
@@ -1778,50 +1777,36 @@ def trip_history():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # LATEST ENTRY PER INDENT LOGIC — AS-IS
     query = """
-        WITH latest_trips AS (
-            SELECT
-                id,
-                indent_id,
-                vehicle_no,
-                driver_name,
-                driver_contact,
-                pickup,
-                drop_location,
-                total_drops,
-                exit_time,
-                eta_arrival_time,
-                actual_arrival_time,
-                total_distance,
-                duration_hours,
-                loading_unloading_time,     -- ✅ ADDED
-                customer_details,
-                pod_url,
-                created_at,
-                ROW_NUMBER() OVER(
-                    PARTITION BY indent_id ORDER BY id DESC
-                ) AS rn
-            FROM trip_data
-        )
         SELECT
-            t.id, t.indent_id, t.vehicle_no, t.driver_name, t.driver_contact,
-            t.pickup, t.drop_location, t.total_drops,
-            t.exit_time, t.eta_arrival_time, t.actual_arrival_time,
-            t.total_distance, t.duration_hours,
-            t.loading_unloading_time,      -- ✅ ADDED
-            t.customer_details,
-            t.pod_url, t.created_at,
+            MAX(t.id) as id,
+            t.indent_id,
+            MAX(t.vehicle_no) as vehicle_no,
+            MAX(t.driver_name) as driver_name,
+            MAX(t.driver_contact) as driver_contact,
+            MAX(t.pickup) as pickup,
+            STRING_AGG(DISTINCT t.drop_location, ', ') as drop_location,
+            COUNT(t.drop_location) as total_drops,
+            MAX(t.exit_time) as exit_time,
+            MAX(t.eta_arrival_time) as eta_arrival_time,
+            MAX(t.actual_arrival_time) as actual_arrival_time,
+            MAX(t.total_distance) as total_distance,
+            MAX(t.duration_hours) as duration_hours,
+            MAX(t.loading_unloading_time) as loading_unloading_time,
+            MAX(t.customer_details::text)::jsonb as customer_details,
+            MAX(t.pod_url) as pod_url,
+            MAX(t.created_at) as created_at,
             i.customer_name,
-            i.lr_no,
+            STRING_AGG(DISTINCT i.lr_no, ', ') as lr_no,
+            i.vehicle_based,
             CASE
-                WHEN t.actual_arrival_time IS NULL THEN 'Pending'
+                WHEN MAX(t.actual_arrival_time) IS NULL THEN 'Pending'
                 ELSE 'Closed'
-            END AS status
-        FROM latest_trips t
-        LEFT JOIN indents i
-            ON t.indent_id = i.indent
-        WHERE t.rn = 1
+            END AS status,
+            MAX(t.fixed_amount) as fixed_amount
+        FROM trip_data t
+        LEFT JOIN indents i ON t.indent_id = i.indent
+        WHERE 1=1
     """
 
     params = []
@@ -1848,13 +1833,15 @@ def trip_history():
     if filter_conditions:
         query += " AND " + " AND ".join(filter_conditions)
 
-    query += " ORDER BY t.id DESC"
+    query += """
+        GROUP BY t.indent_id, i.customer_name, i.vehicle_based
+        ORDER BY id DESC
+    """
 
     cursor.execute(query, params)
     rows = cursor.fetchall()
 
     trips = []
-
     for r in rows:
         trips.append({
             "id": r[0],
@@ -1870,19 +1857,44 @@ def trip_history():
             "actual_arrival_time": r[10],
             "total_distance": r[11],
             "duration_hours": r[12],
-            "loading_unloading_time": r[13],   # ✅ ADDED
+            "loading_unloading_time": r[13],
             "customer_details": r[14],
             "pod_url": r[15],
             "created_at": r[16],
             "customer_name": r[17],
             "lr_no": r[18],
-            "status": r[19]
+            "vehicle_based": r[19],
+            "status": r[20],
+            "fixed_amount": r[21]
         })
 
     cursor.close()
     conn.close()
-
     return render_template("trip_history.html", trips=trips)
+
+
+# --- Naya Route Amount Save Karne Ke Liye ---
+@app.route('/update-fixed-amount', methods=['POST'])
+def update_fixed_amount():
+    data = request.json
+    trip_id = data.get('trip_id')
+    amount = data.get('amount')
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Hum indent_id ke behalf par update kar rahe hain taaki agar grouping multiple rows ki ho toh sabme update ho jaye
+        cursor.execute("""
+            UPDATE trip_data 
+            SET fixed_amount = %s 
+            WHERE indent_id = (SELECT indent_id FROM trip_data WHERE id = %s)
+        """, (amount, trip_id))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}, 500
 
 
 
