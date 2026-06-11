@@ -24,10 +24,10 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Database configuration
 db_config = {
-    'host': 'c7s7ncbk19n97r.cluster-czrs8kj4isg7.us-east-1.rds.amazonaws.com',
-    'user': 'u7tqojjihbpn7s',
-    'password': 'p1b1897f6356bab4e52b727ee100290a84e4bf71d02e064e90c2c705bfd26f4a5',
-    'database': 'd8lp4hr6fmvb9m',
+    'host': 'cd62ai72qd7d5j.cluster-czrs8kj4isg7.us-east-1.rds.amazonaws.com',
+    'user': 'ub9b7s05tbiusp',
+    'password': 'pacc283bd6ecf0615b758b5b7858e993309ef50a6a5cb9e42178205224c424645',
+    'database': 'ddt9klu1mcngoe',
     'port': 5432
 }
 
