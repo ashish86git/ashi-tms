@@ -47,14 +47,14 @@
       font-weight: 700;
       font-size: 22px;
       color: var(--text-light) !important;
-      /* लोगो और टेक्स्ट को एक लाइन में लाने के लिए */
+
       display: flex;
       align-items: center;
     }
 
     /* ✅ NEW: Navbar Logo Styling */
     .navbar-brand .navbar-logo {
-        height: 35px; /* Navbar के लिए छोटा आकार */
+        height: 35px;
         width: auto;
         border-radius: 50%;
         margin-right: 8px;
@@ -63,7 +63,7 @@
     }
 
     .navbar-brand .bi-truck-front-fill {
-        /* पुराने आइकन को लोगो से बदल दिया गया है, इसलिए इसे छुपा दें या इसे भी हटा सकते हैं */
+
         display: none;
     }
 
@@ -101,17 +101,14 @@
       text-align: center;
       background-color: #921A37;
       box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-      /* वेलकम टेक्स्ट के लिए Padding रखा गया है */
+
     }
 
     /* ✅ REMOVED: .sidebar img styling */
     /* ✅ REMOVED: .sidebar img:hover styling */
 
     .sidebar h6 {
-      /* ✅ MODIFIED: Navbar में लोगो लगने के बाद, वेलकम टेक्स्ट को भी ऊपर ले जाने के लिए यह CSS अब उपयोगी नहीं है। */
-      /* इसे वेलकम सेक्शन के बिना, अगर दिखाना है तो, Navbar के पास ले जाया जा सकता है या इसे हटा सकते हैं। */
-      /* फ़िलहाल वेलकम टेक्स्ट को हटा दिया गया है क्योंकि यह लोगो सेक्शन का हिस्सा था जिसे हटाया गया है। */
-      /* यदि आपको वेलकम टेक्स्ट को साइडबार में वापस चाहिए, तो इसे एक नए 'user-info' सेक्शन में जोड़ सकते हैं, पर अभी अनुरोध के अनुसार केवल लोगो हटाना है। */
+
       font-size: 16px;
       margin-top: 10px;
       color: var(--text-light);
@@ -318,7 +315,7 @@
     <i class="bi bi-list"></i>
   </button>
   <a class="navbar-brand" href="/dashboard">
-    <img src="{{ url_for('static', filename='image.jpg') }}"
+    <img src="{{ url_for('static', filename='image.JPG') }}"
      alt="TMS" class="navbar-logo" />
 
     <i class="bi bi-truck-front-fill"></i> TMS Portal
